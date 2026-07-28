@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Astrolancer — Segui la rotta</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#020408; --void-2:#050b14;
+    --accent:#00f0ff; --accent-rgb:0,240,255;
+    --line:rgba(var(--accent-rgb),0.22);
+    --bone:#e0f7ff; --muted:#5a7788; --alert:#ff3366;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--void);color:var(--bone);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;overflow:hidden}
+  h1,h2,.serif{font-family:"Bricolage Grotesque",Georgia,serif;font-weight:400}
+
+  #setup{position:fixed;inset:0;z-index:20;overflow-y:auto;padding:34px 20px 48px;
+    background:radial-gradient(120% 90% at 68% -10%, var(--void-2) 0%, var(--void) 62%)}
+  .wrap{max-width:700px;margin:0 auto}
+  .eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.26em;font-size:10px;margin-bottom:14px}
+  h1{font-size:clamp(30px,7vw,50px);line-height:1.02;margin-bottom:16px}
+  h1 em{font-style:italic;color:var(--bone)}
+  .lede{color:var(--muted);line-height:1.65;max-width:54ch;margin-bottom:30px}
+  .lede b{color:var(--bone);font-weight:500}
+
+  .block{border:1px solid var(--line);background:rgba(5,11,20,.55);padding:18px;margin-bottom:14px}
+  .block h2{font-size:17px;margin-bottom:6px}
+  .hint{color:var(--muted);line-height:1.55;margin-bottom:14px}
+  code{color:var(--accent);background:var(--void-2);padding:1px 5px}
+
+  input[type=file]{width:100%;color:var(--muted);font:inherit}
+  input[type=file]::file-selector-button{font:inherit;background:transparent;color:var(--bone);
+    border:1px solid var(--accent);padding:8px 14px;margin-right:12px;cursor:pointer}
+
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th{text-align:left;color:var(--muted);font-weight:400;font-size:10px;text-transform:uppercase;
+     letter-spacing:.16em;padding:0 8px 8px 0;border-bottom:1px solid var(--line)}
+  td{padding:8px 8px 8px 0;border-bottom:1px solid rgba(var(--accent-rgb),.08)}
+  td.name{max-width:0;width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  select,input[type=number]{font:inherit;background:var(--void-2);color:var(--bone);
+    border:1px solid var(--line);padding:7px 9px;width:100%}
+  select{cursor:pointer}
+  select:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.16em}
+  .field input[type=number]{width:110px}
+  .field select{width:150px}
+
+  #go{font-family:"Bricolage Grotesque",Georgia,serif;font-size:19px;background:var(--accent);color:#000;border:0;
+    padding:15px 28px;cursor:pointer;width:100%;box-shadow:0 0 20px rgba(var(--accent-rgb),0.35)}
+  #go:disabled{background:#0a1520;color:var(--muted);cursor:not-allowed;box-shadow:none}
+  #demo{font:inherit;margin-top:10px;background:transparent;color:var(--muted);width:100%;
+    border:1px solid var(--line);padding:11px;cursor:pointer;letter-spacing:.08em}
+  #demo:hover{color:var(--bone);border-color:var(--accent)}
+  #status{color:var(--muted);margin-top:12px;min-height:1.4em;line-height:1.5}
+  .warn{color:var(--alert)}
+
+  #loader{position:fixed;inset:0;z-index:25;display:none;place-items:center;background:var(--void)}
+  #loader .inner{width:min(460px,84vw);text-align:center}
+  #loader h2{font-size:26px;margin-bottom:10px}
+  #loader p{color:var(--muted);margin-bottom:22px;min-height:1.4em}
+  .track{height:1px;background:var(--line);position:relative;overflow:hidden}
+  .track i{position:absolute;inset:0 100% 0 0;background:linear-gradient(90deg,var(--accent),rgba(var(--accent-rgb),0.4));
+    transition:right .25s ease}
+  #pct{margin-top:14px;color:var(--accent);letter-spacing:.2em;font-size:11px}
+
+  #stage{position:fixed;inset:0;z-index:5;display:none}
+  #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+  /* Webcam fantasma: a tutto schermo, ci si intravede dentro lo spazio */
+  #cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    transform:scaleX(-1);opacity:.14;z-index:1;mix-blend-mode:screen;
+    filter:grayscale(0.6) contrast(1.15) brightness(0.9);pointer-events:none}
+
+  #strips{position:absolute;right:0;top:80px;bottom:80px;width:min(44vw,260px);z-index:2;
+    display:flex;flex-direction:column;justify-content:center;gap:7px;padding:18px;pointer-events:none}
+  .strip{border-left:1px solid var(--line);padding-left:10px}
+  .strip .lbl{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:10px;
+    letter-spacing:.08em;margin-bottom:4px}
+  .strip .lbl span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .strip .fng{color:var(--bone);flex:0 0 auto}
+  .meter{height:2px;background:rgba(var(--accent-rgb),.06);overflow:hidden}
+  .meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,rgba(var(--accent-rgb),0.5),var(--accent));transition:width .06s linear}
+
+  #quit{position:absolute;right:18px;bottom:18px;font:inherit;background:transparent;color:var(--muted);
+    border:1px solid var(--line);padding:8px 14px;cursor:pointer;z-index:6}
+  #quit:hover{color:var(--bone);border-color:var(--accent)}
+  #err{position:absolute;left:50%;top:60px;transform:translateX(-50%);max-width:min(560px,88vw);z-index:6;
+    background:rgba(5,11,20,.94);border:1px solid var(--accent);color:var(--bone);
+    padding:10px 14px;font-size:11px;line-height:1.5;opacity:0;transition:opacity .3s;pointer-events:none}
+
+  #hud-frame{position:fixed;inset:0;pointer-events:none;z-index:3}
+  .hud-corner{position:absolute;width:50px;height:50px;border:1px solid rgba(var(--accent-rgb),0.35);
+    transition:border-color 1s}
+  .hud-corner.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+  .hud-corner.tr{top:14px;right:14px;border-left:0;border-bottom:0}
+  .hud-corner.bl{bottom:14px;left:14px;border-right:0;border-top:0}
+  .hud-corner.br{bottom:14px;right:14px;border-left:0;border-top:0}
+
+  #hud-title{position:fixed;top:22px;left:50%;transform:translateX(-50%);z-index:3;
+    font-family:"Bricolage Grotesque",Georgia,serif;font-size:clamp(16px,2.6vw,28px);
+    color:var(--bone);letter-spacing:0.35em;text-transform:uppercase;white-space:nowrap;
+    text-shadow:0 0 20px rgba(var(--accent-rgb),0.5),0 0 60px rgba(var(--accent-rgb),0.15);
+    pointer-events:none;transition:text-shadow 1s}
+
+  #hud-telemetry{position:fixed;left:28px;top:78px;z-index:3;pointer-events:none;
+    background:rgba(2,4,8,0.45);border:1px solid rgba(var(--accent-rgb),0.15);padding:14px 18px;
+    backdrop-filter:blur(4px);min-width:170px;transition:border-color 1s}
+  #hud-telemetry .hud-panel-title{color:var(--accent);font-size:9px;letter-spacing:0.25em;
+    text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid rgba(var(--accent-rgb),0.2);
+    padding-bottom:6px}
+  #hud-telemetry .hud-row{display:flex;justify-content:space-between;gap:24px;
+    font-size:11px;line-height:2.2;color:#8aacbb}
+  #hud-telemetry .hud-key{text-transform:uppercase;letter-spacing:0.12em;font-size:9px;color:#5a7788}
+  #hud-telemetry .hud-val{color:var(--accent);
+    text-shadow:0 0 8px rgba(var(--accent-rgb),0.4)}
+
+  #hud-status{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:3;
+    display:flex;gap:32px;font-size:9px;letter-spacing:0.18em;color:#5a7788;
+    text-transform:uppercase;pointer-events:none;white-space:nowrap}
+  #hud-status b{color:var(--accent);font-weight:400;text-shadow:0 0 6px rgba(var(--accent-rgb),0.3)}
+  .hud-blink{animation:hudblink 1.5s infinite;color:var(--accent)}
+  @keyframes hudblink{0%,100%{opacity:1}50%{opacity:0.35}}
+
+  #warp-banner{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:6;
+    font-family:"Bricolage Grotesque",Georgia,serif;font-size:clamp(20px,4.5vw,52px);
+    letter-spacing:0.4em;text-transform:uppercase;color:var(--accent);white-space:nowrap;
+    text-shadow:0 0 30px rgba(var(--accent-rgb),0.8),0 0 90px rgba(var(--accent-rgb),0.4);
+    opacity:0;transition:opacity .25s;pointer-events:none}
+  #warp-banner.on{opacity:1;animation:hudblink .6s infinite}
+  #dim-name{position:fixed;top:calc(22px + clamp(20px,3.2vw,34px));left:50%;transform:translateX(-50%);z-index:3;
+    font-size:9px;letter-spacing:0.5em;text-transform:uppercase;color:var(--accent);
+    opacity:0.8;pointer-events:none;transition:color 1s}
+
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:4;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px);
+    opacity:0.3}
+
+  #diag{display:none;position:fixed;inset:0;z-index:40;padding:8vh 8vw;background:var(--void);
+    color:var(--bone);font:14px/1.7 ui-monospace,monospace;overflow:auto}
+  #diag h3{font:400 26px/1.3 "Bricolage Grotesque",serif;color:var(--accent);margin:0 0 18px}
+  #diag p{margin:0 0 12px;color:#8B98B8;max-width:62ch}
+
+  @media (max-width:640px){ #strips{width:50vw;padding:12px;top:70px}
+    #hud-telemetry{left:14px;top:65px;padding:10px 12px;min-width:120px}
+    #hud-title{letter-spacing:0.2em} }
+</style>
+</head>
+<body>
+
+<div id="diag"></div>
+
+<section id="setup">
+  <div class="wrap">
+    <p class="eyebrow">astrolancer · segui la rotta</p>
+    <h1>Dieci dita,<br><em>una rotta.</em></h1>
+    <p class="lede">
+      Carica gli stem scaricati da MobyGratis: il sistema li mescola a caso a ogni sessione,
+      taglia il silenzio iniziale e li sincronizza. Poi si vola: <b>la musica è il motore</b>.
+      Più il brano sale, più la nave accelera — e quando l'energia trabocca la nave
+      <b>salta di dimensione</b>: nebulose, pianeti e colori cambiano settore.
+      Tasto <code>W</code> per forzare il salto.
+    </p>
+
+    <div class="block">
+      <h2>File locali</h2>
+      <p class="hint">Seleziona <b>tutti i file audio</b> dalle cartelle dei vari brani (Ctrl/Cmd+click per selezione multipla). Verranno mescolati a caso e il silenzio iniziale verrà tagliato automaticamente.</p>
+      <input type="file" id="files" multiple accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac">
+    </div>
+
+    <div class="block" id="mapBlock" hidden>
+      <h2>Un dito per stem</h2>
+      <p class="hint">Le mani sono quelle che vedi a schermo. Tieni la base ritmica su "sempre attivo", così il brano non crolla quando chiudi le mani.</p>
+      <table><thead><tr><th>Stem</th><th style="width:170px">Dito</th></tr></thead><tbody id="mapRows"></tbody></table>
+      <div class="row" style="margin-top:16px">
+        <div class="field"><label for="bpm">BPM</label><input type="number" id="bpm" value="120" min="40" max="220"></div>
+        <div class="field"><label for="quality">Qualità fluido</label>
+          <select id="quality">
+            <option value="auto">Automatica</option>
+            <option value="high">Alta</option>
+            <option value="low">Bassa</option>
+          </select></div>
+        <div class="field"><label for="intensity">Intensità FX</label>
+          <select id="intensity">
+            <option value="1">Mild</option>
+            <option value="2" selected>Steroid</option>
+            <option value="3">Overdose</option>
+          </select></div>
+      </div>
+    </div>
+
+    <button id="go" disabled>Entra</button>
+    <button id="demo">Solo scena — demo senza webcam né stem</button>
+    <p id="status">In attesa dei file.</p>
+  </div>
+</section>
+
+<section id="loader"><div class="inner">
+  <h2 class="serif" id="loadTitle">Preparo il brano</h2>
+  <p id="loadWhat">—</p>
+  <div class="track"><i id="bar"></i></div>
+  <div id="pct">0%</div>
+</div></section>
+
+<section id="stage">
+  <video id="cam" autoplay playsinline muted></video>
+  <div id="hud-frame">
+    <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+    <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+  </div>
+  <div id="hud-title">Segui la rotta</div>
+  <div id="dim-name">DIM 01 · SETTORE CIANO</div>
+  <div id="warp-banner">Salto dimensionale</div>
+  <div id="hud-telemetry">
+    <div class="hud-panel-title">Telemetry</div>
+    <div class="hud-row"><span class="hud-key">Dim</span><span class="hud-val" id="tel-dim">01</span></div>
+    <div class="hud-row"><span class="hud-key">Velocity</span><span class="hud-val" id="tel-velocity">0.0</span></div>
+    <div class="hud-row"><span class="hud-key">Distanza</span><span class="hud-val" id="tel-dist">0.00 UA</span></div>
+    <div class="hud-row"><span class="hud-key">Session</span><span class="hud-val" id="tel-session">00:00</span></div>
+    <div class="hud-row"><span class="hud-key">Mani</span><span class="hud-val" id="tel-hands">0</span></div>
+    <div class="hud-row"><span class="hud-key">Tracking</span><span class="hud-val" id="tel-fps">--</span></div>
+    <div class="hud-row"><span class="hud-key">Beat</span><span class="hud-val" id="tel-beat">0.00</span></div>
+  </div>
+  <div id="hud-status">
+    <span class="hud-blink">SYS ONLINE</span>
+    <span>ROTTA X:<b id="pos-x">0</b> Y:<b id="pos-y">0</b></span>
+    <span>SETTORE <b id="sys-sector">CY-441</b></span>
+    <span>FPS <b id="sys-fps">60</b></span>
+  </div>
+  <div id="strips"></div>
+  <div id="err"></div>
+  <button id="quit">Esci</button>
+</section>
+
+<script>
+(function(){
+  var box = document.getElementById("diag"), shown = false;
+  function say(t, ls){ shown = true; box.style.display="block";
+    box.innerHTML = "<h3>"+t+"</h3>"+ls.map(function(l){return "<p>"+l+"</p>";}).join(""); }
+  window.__diagSay = say;
+  if (location.protocol === "file:"){
+    say("La pagina è aperta dal disco", [
+      "I moduli ES non si caricano da <code>file://</code>, e nemmeno la webcam.",
+      "Nella cartella lancia <code>npx serve</code> e apri <code>http://localhost:…</code>."]);
+    return;
+  }
+  var c = document.createElement("canvas");
+  if (!(c.getContext("webgl2") || c.getContext("webgl"))){
+    say("WebGL non disponibile", ["Attiva l'accelerazione hardware nelle impostazioni del browser."]);
+    return;
+  }
+  window.addEventListener("error", function(e){
+    if (!shown && !window.__booted) say("Errore in esecuzione",
+      ["<code>"+(e.message||e.type)+"</code>", e.filename?"<code>"+e.filename+"</code>":""]);
+  });
+  window.addEventListener("unhandledrejection", function(e){
+    if (!shown && !window.__booted) say("Promessa rifiutata",
+      ["<code>"+((e.reason&&e.reason.message)||e.reason)+"</code>"]);
+  });
+  fetch("./three-fluid-fx.es.js", {method:"HEAD"}).then(function(r){
+    if (!r.ok && !shown) say("Libreria non trovata",
+      ["<code>three-fluid-fx.es.js</code> risponde <code>HTTP "+r.status+"</code>.",
+       "Deve stare nella stessa cartella di questo file."]);
+  }).catch(function(){});
+  setTimeout(function(){
+    if (!window.__booted && !shown) say("Il modulo non è partito",
+      ["Nessun errore intercettato ma lo script non ha raggiunto la fine.",
+       "Di solito è il CDN di three.js irraggiungibile o la libreria mancante."]);
+  }, 8000);
+})();
+</script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+  "three-fluid-fx": "./three-fluid-fx.es.js"
+}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+<script type="module">
+import {
+  Scene, PerspectiveCamera, WebGLRenderer, WebGLRenderTarget, Color, LinearFilter, SRGBColorSpace,
+  ShaderMaterial, Uniform, Vector2, Vector3, Group, Mesh,
+  MeshStandardMaterial, MeshBasicMaterial, PointLight, AmbientLight, DirectionalLight,
+  BufferGeometry, Float32BufferAttribute, Points, PointsMaterial, LineSegments, LineBasicMaterial,
+  AdditiveBlending, DoubleSide, BackSide, FogExp2, Sprite, SpriteMaterial, CanvasTexture,
+  CylinderGeometry, SphereGeometry, IcosahedronGeometry, BoxGeometry, ConeGeometry, RingGeometry,
+  PlaneGeometry
+} from "three";
+import { FluidSimulation, FullscreenPass, FULLSCREEN_VERTEX } from "three-fluid-fx";
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+/* ===================================================================== CONFIG */
+const CFG = {
+  trackingFps:22, smoothing:0.25, rampSeconds:0.08,
+  filterMinHz:220, filterMaxHz:18000, reverbSend:0.55, idleGain:0.85, gamma:1.4,
+  extRange:{ thumb:[1.10,1.85], index:[0.68,0.96], middle:[0.66,0.96], ring:[0.66,0.96], pinky:[0.68,0.96] },
+  splatMin:0.18, splatForce:18, beatBurst:2.0,
+  trimThreshold:0.008, trimLookahead:0.15,
+  /* volo */
+  baseSpeed:7, musicSpeed:26, beatSpeed:9, warpSpeedMul:42,
+  steerX:7.5, steerY:4.2,
+  warpEveryMeasures:8, warpCooldown:18, warpEnergy:0.72, warpEnergyHold:7
+};
+/* Asse visivo del fluido: da inchiostro denso a rifrazione calda. */
+const INK  = { refract:0.055, glow:0.9, aberr:8, dye:1.0, curl:1.8, vd:0.970, dd:0.972 };
+const HEAT = { refract:0.14,  glow:0.32, aberr:18, dye:0.55, curl:3.6, vd:0.948, dd:0.932 };
+
+/* ===================================================================== DIMENSIONI
+   Ogni salto porta la nave in un settore con luce, nebulosa e inchiostro propri.
+   L'HUD si ricolora leggendo --accent, quindi qui basta cambiare palette. */
+const DIMENSIONS = [
+  { name:"SETTORE CIANO",     code:"CY", hex:"#00f0ff", rgb:"0,240,255",
+    bg:0x020408, fog:0x041019, sun:0xaaccff, rim:0x0044aa,
+    nebA:[0.06,0.22,0.60], nebB:[0.30,0.04,0.55], star:0x9fd8ff,
+    engine:0xff6a00, dust:0x00aaff, ast:0x334455,
+    streaks:["#9fe8ff","#ffffff","#5f7bff","#b48fff"],
+    dyeA:[0.02,0.35,0.45], dyeB:[0.25,0.85,1.00], burst:[0.05,0.30,0.40] },
+  { name:"IPERSPAZIO MAGENTA",code:"MG", hex:"#ff3fd6", rgb:"255,63,214",
+    bg:0x070310, fog:0x14041c, sun:0xffb0e8, rim:0x5500aa,
+    nebA:[0.48,0.04,0.48], nebB:[0.10,0.04,0.45], star:0xffc4f0,
+    engine:0x30f0ff, dust:0xff55cc, ast:0x453349,
+    streaks:["#ff9fe8","#ffffff","#b45fff","#ff5f8f"],
+    dyeA:[0.38,0.02,0.30], dyeB:[1.00,0.30,0.85], burst:[0.35,0.04,0.28] },
+  { name:"DERIVA AMBRA",      code:"AM", hex:"#ffb347", rgb:"255,179,71",
+    bg:0x080502, fog:0x180d02, sun:0xffd9a0, rim:0xaa3300,
+    nebA:[0.55,0.26,0.04], nebB:[0.40,0.06,0.16], star:0xffe0b0,
+    engine:0x25c8ff, dust:0xffaa44, ast:0x4a3d2c,
+    streaks:["#ffd89f","#ffffff","#ff8f5f","#ffdf3f"],
+    dyeA:[0.42,0.18,0.02], dyeB:[1.00,0.70,0.20], burst:[0.38,0.20,0.03] },
+  { name:"VUOTO SMERALDO",    code:"SM", hex:"#39ffb0", rgb:"57,255,176",
+    bg:0x020806, fog:0x03150e, sun:0xa0ffd8, rim:0x008855,
+    nebA:[0.04,0.48,0.30], nebB:[0.02,0.16,0.40], star:0xc0ffe4,
+    engine:0xff5533, dust:0x33ffaa, ast:0x2c4a3c,
+    streaks:["#9fffd8","#ffffff","#3fdfff","#dfff8f"],
+    dyeA:[0.02,0.36,0.18], dyeB:[0.30,1.00,0.65], burst:[0.03,0.32,0.16] },
+];
+
+const FINGERS = ["thumb","index","middle","ring","pinky"];
+const FINGER_IT = { thumb:"pollice", index:"indice", middle:"medio", ring:"anulare", pinky:"mignolo" };
+const CHAIN = { thumb:[1,2,3,4], index:[5,6,7,8], middle:[9,10,11,12], ring:[13,14,15,16], pinky:[17,18,19,20] };
+const TIP = { thumb:4, index:8, middle:12, ring:16, pinky:20 };
+const SLOT_ORDER = ["Left:index","Right:index","Left:middle","Right:middle","Left:ring","Right:ring",
+                    "Left:pinky","Right:pinky","Left:thumb","Right:thumb"];
+
+const DEBUG_DIRECT = new URLSearchParams(location.search).has("direct");
+const $ = s => document.querySelector(s);
+const clamp01 = v => v<0?0:v>1?1:v;
+const lerp = (a,b,t) => a+(b-a)*t;
+const safe = (v,lo,hi) => { v=Number(v); return !isFinite(v)?lo:v<lo?lo:v>hi?hi:v; };
+
+/* ===================================================================== SETUP UI */
+let picked=[], songTitle="";
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+function guessSlot(name){
+  const n = name.toLowerCase();
+  if(/drum|kick|snare|hat/.test(n)) return "none";
+  if(/bass/.test(n)) return "Left:index";
+  if(/pad|synth|key/.test(n)) return "Left:middle";
+  if(/string|orch|violin|cello/.test(n)) return "Left:ring";
+  if(/arp|pluck|mallet/.test(n)) return "Left:pinky";
+  if(/lead|solo|melody/.test(n)) return "Right:index";
+  if(/choir|vox|voice/.test(n)) return "Right:middle";
+  if(/fx|noise|sweep|rise/.test(n)) return "Right:ring";
+  if(/perc|tom|conga/.test(n)) return "Right:pinky";
+  if(/sub|low|808/.test(n)) return "Right:thumb";
+  return SLOT_ORDER[Math.floor(Math.random()*SLOT_ORDER.length)];
+}
+
+$("#files").addEventListener("change", e=>{
+  const files = [...e.target.files].filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|m4a|ogg|flac)$/i.test(f.name));
+  if(!files.length){ $("#status").textContent="Nessun file audio trovato."; return; }
+  const shuffled = shuffle(files);
+  const drums = shuffled.find(f => /drum|kick|snare/i.test(f.name));
+  let selected = shuffled.slice(0,11);
+  if(drums && selected[0] !== drums){ selected = [drums, ...selected.filter(f=>f!==drums)].slice(0,11); }
+  picked = selected.map((f,i)=>({
+    name: f.name.replace(/\.[^.]+$/,""),
+    url: URL.createObjectURL(f),
+    slot: i===0 ? "none" : guessSlot(f.name)
+  }));
+  songTitle = "Rotta " + Math.floor(Math.random()*999);
+  drawRows();
+  $("#mapBlock").hidden = false;
+  $("#go").disabled = false;
+  $("#status").className="";
+  $("#status").textContent = picked.length + " stem pronti. Ogni volta che ricarichi la pagina il mix cambia.";
+});
+
+function drawRows(){
+  const opts = ["Left","Right"].map(h=>
+    '<optgroup label="Mano '+(h==="Left"?"sinistra":"destra")+'">'+
+    FINGERS.map(f=>'<option value="'+h+':'+f+'">'+FINGER_IT[f]+'</option>').join("")+'</optgroup>').join("");
+  $("#mapRows").innerHTML="";
+  picked.forEach((p,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML='<td class="name" title="'+p.name+'">'+p.name+'</td>'+
+      '<td><select data-i="'+i+'">'+opts+'<option value="none">Sempre attivo</option></select></td>';
+    tr.querySelector("select").value=p.slot;
+    $("#mapRows").appendChild(tr);
+  });
+  $("#mapRows").querySelectorAll("select").forEach(sel=>
+    sel.onchange = e => { picked[e.target.dataset.i].slot = e.target.value; });
+}
+$("#go").onclick = ()=>start(false);
+$("#demo").onclick = ()=>start(true);
+
+/* ===================================================================== TRIM SILENCE */
+function trimSilence(ctx, buffer, threshold=CFG.trimThreshold, maxLookaheadSec=CFG.trimLookahead){
+  const data = buffer.getChannelData(0);
+  const sr = buffer.sampleRate;
+  const maxLookahead = Math.min(Math.floor(maxLookaheadSec * sr), data.length);
+  let start = 0;
+  for(let i=0;i<maxLookahead;i++){ if(Math.abs(data[i]) > threshold){ start=i; break; } }
+  if(start===0) return buffer;
+  const newLen = data.length - start;
+  const out = ctx.createBuffer(buffer.numberOfChannels, newLen, sr);
+  for(let c=0;c<buffer.numberOfChannels;c++){
+    out.copyToChannel(buffer.getChannelData(c).subarray(start), c);
+  }
+  return out;
+}
+
+/* ===================================================================== PRELOAD */
+async function preload(){
+  await Tone.start();
+  const ctx = Tone.getContext().rawContext;
+  const buffers=[];
+  const show = p => {
+    const pct = Math.min(99, Math.round(p/picked.length*100));
+    $("#bar").style.right = (100-pct)+"%";
+    $("#pct").textContent = pct+"%";
+  };
+  for(const p of picked){
+    $("#loadWhat").textContent = "Carico "+p.name;
+    const res = await fetch(p.url);
+    const raw = await res.arrayBuffer();
+    $("#loadWhat").textContent = "Decodifico "+p.name;
+    let buf = await ctx.decodeAudioData(raw);
+    $("#loadWhat").textContent = "Taglio silenzio "+p.name;
+    buf = trimSilence(ctx, buf);
+    buffers.push(buf);
+    show(buffers.length);
+  }
+  $("#bar").style.right="0%"; $("#pct").textContent="100%";
+  return buffers;
+}
+
+/* ===================================================================== AUDIO */
+let channels=[], master=null, fullMeter=null, lowMeter=null, running=false, demoMode=false;
+
+function buildAudio(buffers){
+  Tone.getTransport().bpm.value = Number($("#bpm").value)||120;
+  master = new Tone.Gain(1).toDestination();
+  fullMeter = new Tone.Meter({ normalRange:true, smoothing:0.72 });
+  master.connect(fullMeter);
+  const lowTap = new Tone.Filter(150,"lowpass");
+  lowMeter = new Tone.Meter({ normalRange:true, smoothing:0.45 });
+  master.connect(lowTap); lowTap.connect(lowMeter);
+  const reverb = new Tone.Reverb({ decay:3.6, wet:1 }).connect(master);
+
+  channels = picked.map((p,i)=>{
+    const [hand,finger] = p.slot==="none" ? [null,null] : p.slot.split(":");
+    const gain   = new Tone.Gain(0).connect(master);
+    const send   = new Tone.Gain(0).connect(reverb);
+    const panner = new Tone.Panner(0).connect(gain);
+    panner.connect(send);
+    const filter = new Tone.Filter(CFG.filterMaxHz,"lowpass").connect(panner);
+    const player = new Tone.Player(buffers[i]).connect(filter);
+    player.loop=true; player.fadeIn=0.02; player.fadeOut=0.02;
+    player.sync().start(0);
+    return { name:p.name, hand, finger, player, filter, panner, gain, send, level:0, raw:0 };
+  });
+  return reverb.generate();
+}
+
+function applyFinger(ch, f, wristY, dt){
+  const target = f ? f.ext : 0;
+  if(f) ch.raw = f.rawExt;
+  ch.level = safe(ch.level + (target-ch.level)*Math.min(1, dt*9), 0, 1);
+  ch.gain.gain.rampTo(ch.level, CFG.rampSeconds);
+  if(!f) return;
+  const hz = CFG.filterMinHz * Math.pow(CFG.filterMaxHz/CFG.filterMinHz, safe(f.y,0,1));
+  ch.filter.frequency.rampTo(safe(hz, CFG.filterMinHz, CFG.filterMaxHz), CFG.rampSeconds);
+  ch.panner.pan.rampTo(safe(f.x*2-1, -1, 1), CFG.rampSeconds);
+  ch.send.gain.rampTo(safe(wristY,0,1)*CFG.reverbSend, CFG.rampSeconds);
+}
+
+/* ===================================================================== TRACKING */
+let landmarker=null, video=null, stream=null;
+let smoothed={Left:null,Right:null}, live={Left:null,Right:null};
+let lastDetect=0, fpsAvg=0;
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0));
+function curlRatio(lm, ids){
+  const [a,b,c,d]=ids;
+  const chain = dist(lm[a],lm[b])+dist(lm[b],lm[c])+dist(lm[c],lm[d]);
+  return chain ? dist(lm[a],lm[d])/chain : 0;
+}
+function features(lm){
+  const palm = dist(lm[0],lm[9])||1e-6;
+  const out = { wristY: clamp01(1-lm[0].y), fingers:{} };
+  for(const f of FINGERS){
+    const raw = f==="thumb" ? dist(lm[4],lm[17])/palm : curlRatio(lm, CHAIN[f]);
+    const [lo,hi] = CFG.extRange[f];
+    const tip = lm[TIP[f]];
+    out.fingers[f] = { rawExt:isFinite(raw)?raw:lo,
+      ext: Math.pow(clamp01((raw-lo)/(hi-lo))||0, CFG.gamma),
+      x: clamp01(1-tip.x), y: clamp01(1-tip.y) };
+  }
+  return out;
+}
+function smoothHand(prev,next,a){
+  if(!prev) return JSON.parse(JSON.stringify(next));
+  const out={ wristY: prev.wristY+(next.wristY-prev.wristY)*a, fingers:{} };
+  for(const f of FINGERS){
+    const p=prev.fingers[f], n=next.fingers[f], o={};
+    for(const k in n) o[k]=p[k]+(n[k]-p[k])*a;
+    out.fingers[f]=o;
+  }
+  return out;
+}
+async function buildTracking(){
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:"user", width:{ideal:640}, height:{ideal:480} }, audio:false });
+  video = $("#cam"); video.srcObject = stream; await video.play();
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  landmarker = await HandLandmarker.createFromOptions(vision,{
+    baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate:"GPU" },
+    runningMode:"VIDEO", numHands:2, minHandDetectionConfidence:0.6, minTrackingConfidence:0.6 });
+}
+function detect(now){
+  if(now-lastDetect < 1000/CFG.trackingFps || !video.videoWidth) return;
+  const delta = now-lastDetect; lastDetect=now;
+  fpsAvg += (1000/delta - fpsAvg)*0.1;
+  const res = landmarker.detectForVideo(video, now);
+  const found = { Left:null, Right:null };
+  (res.landmarks||[]).forEach((lm,i)=>{
+    const hd = res.handedness || res.handednesses || [];
+    const raw = hd[i]?.[0]?.categoryName;
+    const key = raw==="Left" ? "Right" : raw==="Right" ? "Left" : (found.Left?"Right":"Left");
+    found[key] = features(lm);
+  });
+  for(const k of ["Left","Right"])
+    smoothed[k] = found[k] ? smoothHand(smoothed[k], found[k], CFG.smoothing) : null;
+  live = smoothed;
+}
+
+/* ===================================================================== MONDO SPAZIALE
+   La nave sta quasi ferma: è il mondo che le corre incontro lungo -Z e viene
+   riciclato dietro la camera. È questo che dà la sensazione di velocità. */
+let renderer, fluid, spaceScene, spaceCamera, spaceTarget, composite, pass;
+let spaceship, engineGlows=[], engineLights=[], engineMats=[], cockpitMat=null;
+let trail, trailPos, trailCount=160;
+let asteroids=[], astMat=null, planets=[], nebulaMat=null, stars=null, starsMat=null;
+let dust=null, dustPos=null, warpLines=null, warpPos=null, warpCol=null, warpMeta=null;
+let shards=null, shardPos=null, shardCol=null, shardMeta=null;
+let clouds=[], vortex=null, vortexMat=null;
+let sunLight=null, rimLight=null;
+let beatEnv=0, mixSmooth=0, sessionStart=0;
+let worldSpeed=0, travelled=0, speedNorm=0;
+let dimIndex=0, warpPhase="idle", warpT=0, warpAmt=0, flashAmt=0, lastWarpEnd=-1e9, highEnergyT=0;
+const prevTip = {};
+const DUST_N=2600, WARP_N=1100, AST_N=46, SHARD_N=110, CLOUD_N=26;
+
+function quality(){
+  const q = $("#quality").value;
+  const small = innerWidth < 820 || (devicePixelRatio||1) > 2;
+  if(q==="high") return { simResolution:256, dyeResolution:512, pressureIterations:12 };
+  if(q==="low")  return { simResolution:128, dyeResolution:256, pressureIterations:6 };
+  return small ? { simResolution:128, dyeResolution:256, pressureIterations:6 }
+               : { simResolution:256, dyeResolution:512, pressureIterations:12 };
+}
+
+function buildShip(){
+  const d = DIMENSIONS[dimIndex];
+  spaceship = new Group();
+
+  const hullMat = new MeshStandardMaterial({ color:0x9aa8b8, metalness:0.85, roughness:0.28,
+    emissive:0x0a1420, emissiveIntensity:0.35 });
+  const darkMat = new MeshStandardMaterial({ color:0x3a4552, metalness:0.8, roughness:0.4 });
+
+  // Fusoliera: prua verso -Z
+  const fus = new CylinderGeometry(0.14, 0.34, 2.4, 12);
+  fus.rotateX(-Math.PI/2);
+  spaceship.add(new Mesh(fus, hullMat));
+  const nose = new ConeGeometry(0.14, 0.7, 12);
+  nose.rotateX(-Math.PI/2);
+  const noseMesh = new Mesh(nose, hullMat);
+  noseMesh.position.z = -1.55;
+  spaceship.add(noseMesh);
+
+  // Cabina
+  cockpitMat = new MeshStandardMaterial({ color:d.hex, metalness:0.1, roughness:0.05,
+    emissive:d.hex, emissiveIntensity:0.9, transparent:true, opacity:0.9 });
+  const cockpit = new Mesh(new SphereGeometry(0.19, 16, 16), cockpitMat);
+  cockpit.scale.set(1, 0.7, 1.5);
+  cockpit.position.set(0, 0.2, -0.55);
+  spaceship.add(cockpit);
+
+  // Ali a freccia + timone
+  const wingGeo = new BoxGeometry(1.5, 0.045, 0.75);
+  const wingL = new Mesh(wingGeo, darkMat);
+  wingL.position.set(-0.85, -0.05, 0.55); wingL.rotation.y = -0.45; wingL.rotation.z = 0.08;
+  const wingR = new Mesh(wingGeo, darkMat);
+  wingR.position.set( 0.85, -0.05, 0.55); wingR.rotation.y =  0.45; wingR.rotation.z = -0.08;
+  spaceship.add(wingL, wingR);
+  const fin = new Mesh(new BoxGeometry(0.045, 0.6, 0.55), darkMat);
+  fin.position.set(0, 0.38, 0.85); fin.rotation.x = 0.3;
+  spaceship.add(fin);
+
+  // Motori + bagliori additivi + luci
+  engineGlows=[]; engineLights=[]; engineMats=[];
+  const engGeo = new CylinderGeometry(0.1, 0.16, 0.45, 10);
+  engGeo.rotateX(-Math.PI/2);
+  for(const sx of [-0.5, 0.5]){
+    const em = new MeshStandardMaterial({ color:0x222b33, metalness:0.9, roughness:0.35,
+      emissive:d.engine, emissiveIntensity:1.6 });
+    engineMats.push(em);
+    const eng = new Mesh(engGeo, em);
+    eng.position.set(sx*0.9, -0.02, 1.15);
+    spaceship.add(eng);
+    const glow = new Mesh(new SphereGeometry(0.16, 12, 12),
+      new MeshBasicMaterial({ color:d.engine, transparent:true, opacity:0.85,
+        blending:AdditiveBlending, depthWrite:false }));
+    glow.position.set(sx*0.9, -0.02, 1.45);
+    spaceship.add(glow); engineGlows.push(glow);
+    const pl = new PointLight(d.engine, 2.2, 7);
+    pl.position.set(sx*0.9, -0.02, 1.6);
+    spaceship.add(pl); engineLights.push(pl);
+  }
+  spaceship.scale.setScalar(1.25);
+  spaceScene.add(spaceship);
+}
+
+const NEBULA_FRAG = /* glsl */`
+  precision mediump float;
+  varying vec3 vDir;
+  uniform float uTime, uWarp;
+  uniform vec3 uColA, uColB;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+    return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y);
+  }
+  float fbm(vec2 p){
+    float v=0.0, a=0.5;
+    for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }
+    return v;
+  }
+  void main(){
+    vec3 d = normalize(vDir);
+    vec2 sph = vec2(atan(d.z, d.x), asin(clamp(d.y,-1.0,1.0)));
+    sph.x += uWarp * sin(sph.y*7.0 + uTime*2.5) * 0.5;
+    float n  = fbm(sph*vec2(1.6,2.6) + uTime*0.012);
+    float n2 = fbm(sph*vec2(4.5,6.0) - uTime*0.008 + 7.31);
+    vec3 col = mix(uColA, uColB, n) * (0.12 + 0.85*n*n2);
+    col += uColB * pow(n2, 6.0) * 0.6;
+    col *= 0.55 + uWarp*0.5;
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+
+const PLANET_FRAG = /* glsl */`
+  precision mediump float;
+  varying vec3 vN; varying vec3 vP;
+  uniform float uTime, uSeed;
+  uniform vec3 uTintA, uTintB;
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+    return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y);
+  }
+  float fbm(vec2 p){
+    float v=0.0, a=0.5;
+    for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.1; a*=0.5; }
+    return v;
+  }
+  void main(){
+    float turb = fbm(vec2(vP.x*1.4 + uSeed, vP.z*1.4 - uSeed));
+    float band = fbm(vec2(vP.y*2.2 + turb*1.6 + uSeed*3.0, uSeed));
+    vec3 surf = mix(uTintA, uTintB, band) * (0.25 + 0.5*band);
+    float lam = max(dot(vN, normalize(vec3(0.6,0.7,0.5))), 0.0);
+    surf *= 0.25 + lam*0.9;
+    float f = pow(1.0 - abs(dot(vN, vec3(0.0,0.0,1.0))), 2.6);
+    surf += uTintB * f * 1.1;
+    gl_FragColor = vec4(surf, 1.0);
+  }`;
+
+function makePlanet(radius, tintA, tintB, withRing){
+  const g = new Group();
+  const mat = new ShaderMaterial({
+    uniforms:{ uTime:{value:0}, uSeed:{value:Math.random()*10},
+      uTintA:{value:tintA.slice()}, uTintB:{value:tintB.slice()} },
+    vertexShader:`varying vec3 vN; varying vec3 vP;
+      void main(){ vN=normalize(normalMatrix*normal); vP=normalize(position);
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:PLANET_FRAG
+  });
+  const body = new Mesh(new SphereGeometry(radius, 40, 40), mat);
+  g.add(body);
+  if(withRing){
+    const rMat = new ShaderMaterial({
+      uniforms:{ uTint:{value:tintB.slice()}, uInner:{value:radius*1.45}, uOuter:{value:radius*2.5} },
+      vertexShader:`varying float vR;
+        void main(){ vR=length(position.xy);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader:`precision mediump float; varying float vR;
+        uniform vec3 uTint; uniform float uInner, uOuter;
+        void main(){
+          float t=(vR-uInner)/(uOuter-uInner);
+          float stripe = 0.55 + 0.45*sin(t*40.0);
+          float fade = smoothstep(0.0,0.12,t)*smoothstep(1.0,0.82,t);
+          gl_FragColor = vec4(uTint*0.8, fade*stripe*0.55);
+        }`,
+      transparent:true, side:DoubleSide, depthWrite:false
+    });
+    const ring = new Mesh(new RingGeometry(radius*1.45, radius*2.5, 80), rMat);
+    ring.rotation.x = Math.PI/2 - 0.35;
+    g.add(ring);
+    g.userData.ringMat = rMat;
+  }
+  g.userData.mat = mat;
+  return g;
+}
+
+function respawnPlanet(p, far){
+  const side = Math.random()<0.5?-1:1;
+  p.position.set(side*(34+Math.random()*45), (Math.random()-0.5)*44,
+    far ? -(260+Math.random()*140) : -(80+Math.random()*300));
+  const s = 0.7+Math.random()*1.5;
+  p.scale.setScalar(s);
+  p.userData.mat.uniforms.uSeed.value = Math.random()*10;
+}
+
+function buildScene(){
+  renderer = new WebGLRenderer({ antialias:true, powerPreference:"high-performance" });
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2));
+  const d = DIMENSIONS[dimIndex];
+  renderer.setClearColor(new Color(d.bg), 1);
+  $("#stage").prepend(renderer.domElement);
+
+  const q = quality();
+  fluid = new FluidSimulation(renderer, {
+    ...q, densityDissipation: INK.dd, velocityDissipation: INK.vd,
+    curlStrength: INK.curl, splatRadius: 0.0016, splatForce: CFG.splatForce
+  });
+  fluid.enableDye = true;
+
+  spaceScene = new Scene();
+  spaceScene.fog = new FogExp2(d.fog, 0.0075);
+  const aspect = innerWidth / Math.max(1,innerHeight);
+  spaceCamera = new PerspectiveCamera(58, aspect, 0.1, 600);
+  spaceCamera.position.set(0, 1.6, 7);
+
+  spaceScene.add(new AmbientLight(0x223344, 0.7));
+  sunLight = new DirectionalLight(d.sun, 1.6);
+  sunLight.position.set(8, 12, 6);
+  spaceScene.add(sunLight);
+  rimLight = new DirectionalLight(d.rim, 0.7);
+  rimLight.position.set(-6, -3, -10);
+  spaceScene.add(rimLight);
+
+  buildShip();
+
+  // Scia dei motori
+  const tGeo = new BufferGeometry();
+  trailPos = new Float32Array(trailCount*3);
+  for(let i=0;i<trailCount;i++){ trailPos[i*3+2] = 9999; }
+  tGeo.setAttribute('position', new Float32BufferAttribute(trailPos, 3));
+  trail = new Points(tGeo, new PointsMaterial({ color:d.engine, size:0.14, transparent:true,
+    opacity:0.5, blending:AdditiveBlending, depthWrite:false, sizeAttenuation:true, fog:false }));
+  trail.frustumCulled = false;
+  spaceScene.add(trail);
+
+  // Nebulosa avvolgente
+  nebulaMat = new ShaderMaterial({
+    uniforms:{ uTime:{value:0}, uWarp:{value:0},
+      uColA:{value:d.nebA.slice()}, uColB:{value:d.nebB.slice()} },
+    vertexShader:`varying vec3 vDir;
+      void main(){ vDir=position;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:NEBULA_FRAG,
+    side:BackSide, depthWrite:false, fog:false
+  });
+  const nebula = new Mesh(new SphereGeometry(420, 32, 32), nebulaMat);
+  spaceScene.add(nebula);
+
+  // Stelle fisse lontane
+  const sGeo = new BufferGeometry();
+  const sCount = 2400;
+  const sPos = new Float32Array(sCount*3);
+  for(let i=0;i<sCount;i++){
+    const r=140+Math.random()*220, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    sPos[i*3]=r*Math.sin(ph)*Math.cos(th); sPos[i*3+1]=r*Math.sin(ph)*Math.sin(th); sPos[i*3+2]=r*Math.cos(ph);
+  }
+  sGeo.setAttribute('position', new Float32BufferAttribute(sPos,3));
+  starsMat = new PointsMaterial({ color:d.star, size:0.9, transparent:true, opacity:0.85,
+    blending:AdditiveBlending, depthWrite:false, sizeAttenuation:true, fog:false });
+  stars = new Points(sGeo, starsMat);
+  spaceScene.add(stars);
+
+  // Polvere: il segnale di velocità più immediato
+  const dGeo = new BufferGeometry();
+  dustPos = new Float32Array(DUST_N*3);
+  for(let i=0;i<DUST_N;i++){
+    dustPos[i*3]=(Math.random()-0.5)*70;
+    dustPos[i*3+1]=(Math.random()-0.5)*44;
+    dustPos[i*3+2]=-Math.random()*160+10;
+  }
+  dGeo.setAttribute('position', new Float32BufferAttribute(dustPos,3));
+  dust = new Points(dGeo, new PointsMaterial({ color:d.dust, size:0.05, transparent:true,
+    opacity:0.5, blending:AdditiveBlending, depthWrite:false, sizeAttenuation:true, fog:false }));
+  dust.frustumCulled = false;
+  spaceScene.add(dust);
+
+  // Tunnel di streak: il corpo dell'iperspazio, sempre attivo
+  const wGeo = new BufferGeometry();
+  warpPos = new Float32Array(WARP_N*6);
+  warpCol = new Float32Array(WARP_N*6);
+  warpMeta = [];
+  for(let i=0;i<WARP_N;i++){
+    const a=Math.random()*Math.PI*2, r=4+Math.random()*32;
+    warpMeta.push({ x:Math.cos(a)*r, y:Math.sin(a)*r, z:-Math.random()*180 });
+  }
+  wGeo.setAttribute('position', new Float32BufferAttribute(warpPos,3));
+  wGeo.setAttribute('color', new Float32BufferAttribute(warpCol,3));
+  warpLines = new LineSegments(wGeo, new LineBasicMaterial({ vertexColors:true, transparent:true,
+    opacity:0.0, blending:AdditiveBlending, depthWrite:false, fog:false }));
+  warpLines.frustumCulled = false;
+  spaceScene.add(warpLines);
+  paintStreaks(d);
+
+  // Schegge grafiche: triangoli duri che sfrecciano (dalla reference inktober)
+  const shGeo = new BufferGeometry();
+  shardPos = new Float32Array(SHARD_N*9);
+  shardCol = new Float32Array(SHARD_N*9);
+  shardMeta = [];
+  for(let i=0;i<SHARD_N;i++){
+    const a=Math.random()*Math.PI*2, r=6+Math.random()*32;
+    shardMeta.push({ x:Math.cos(a)*r, y:Math.sin(a)*r, z:-Math.random()*180,
+      len:5+Math.random()*22, w:0.08+Math.random()*0.5, ca:Math.random()*Math.PI*2 });
+  }
+  shGeo.setAttribute('position', new Float32BufferAttribute(shardPos,3));
+  shGeo.setAttribute('color', new Float32BufferAttribute(shardCol,3));
+  shards = new Mesh(shGeo, new MeshBasicMaterial({ vertexColors:true, transparent:true,
+    opacity:0.35, blending:AdditiveBlending, depthWrite:false, side:DoubleSide, fog:false }));
+  shards.frustumCulled = false;
+  spaceScene.add(shards);
+  paintShards(d);
+
+  // Nuvole nebulari che sfrecciano accanto (stile warp di No Man's Sky)
+  const cloudTex = makeCloudTexture();
+  for(let i=0;i<CLOUD_N;i++){
+    const sp = new Sprite(new SpriteMaterial({ map:cloudTex, transparent:true,
+      opacity:0.14+Math.random()*0.12, blending:AdditiveBlending, depthWrite:false,
+      rotation:Math.random()*Math.PI*2, fog:false }));
+    const a=Math.random()*Math.PI*2, r=14+Math.random()*38;
+    sp.position.set(Math.cos(a)*r, Math.sin(a)*r, -Math.random()*220);
+    sp.scale.setScalar(24+Math.random()*46);
+    sp.userData.spin=(Math.random()-0.5)*0.12;
+    spaceScene.add(sp); clouds.push(sp);
+  }
+  paintClouds(d);
+
+  // Vortice al punto di fuga: la spirale verso cui tutto converge
+  vortexMat = new ShaderMaterial({
+    uniforms:{ uTime:{value:0}, uTint:{value:hexToVec3(d.hex)}, uInt:{value:0.3} },
+    vertexShader:`varying vec2 vUv2; void main(){ vUv2=uv;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`precision mediump float; varying vec2 vUv2;
+      uniform float uTime, uInt; uniform vec3 uTint;
+      void main(){
+        vec2 c = vUv2 - 0.5;
+        float r = length(c)*2.0;
+        float a = atan(c.y, c.x);
+        float spiral = sin(a*3.0 + 4.0/(r+0.15) - uTime*2.4)*0.5+0.5;
+        float arms = smoothstep(0.25, 0.95, spiral) * smoothstep(0.05, 0.35, r);
+        float core = pow(max(0.0, 1.0-r*1.5), 2.4);
+        float fade = smoothstep(1.0, 0.5, r);
+        vec3 col = (uTint*arms*0.55 + vec3(1.0,0.98,0.95)*core*1.3) * fade * uInt;
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+    transparent:true, blending:AdditiveBlending, depthWrite:false, fog:false
+  });
+  vortex = new Mesh(new PlaneGeometry(120,120), vortexMat);
+  vortex.position.set(0,0,-150);
+  spaceScene.add(vortex);
+
+  // Asteroidi in corridoio
+  astMat = new MeshStandardMaterial({ color:d.ast, metalness:0.35, roughness:0.9, flatShading:true });
+  for(let i=0;i<AST_N;i++){
+    const g = new IcosahedronGeometry(1, 1);
+    const pAttr = g.attributes.position;
+    for(let j=0;j<pAttr.count;j++){
+      pAttr.setXYZ(j,
+        pAttr.getX(j)*(1+(Math.random()-0.5)*0.55),
+        pAttr.getY(j)*(1+(Math.random()-0.5)*0.55),
+        pAttr.getZ(j)*(1+(Math.random()-0.5)*0.55));
+    }
+    g.computeVertexNormals();
+    const ast = new Mesh(g, astMat);
+    respawnAsteroid(ast, true);
+    ast.userData.rsx=(Math.random()-0.5)*0.8;
+    ast.userData.rsy=(Math.random()-0.5)*0.8;
+    spaceScene.add(ast);
+    asteroids.push(ast);
+  }
+
+  // Pianeti: uno con anelli, due nudi
+  planets = [
+    makePlanet(9, d.nebA, [d.nebB[0]+0.2, d.nebB[1]+0.2, d.nebB[2]+0.3], true),
+    makePlanet(5, d.nebB, d.nebA, false),
+    makePlanet(3.2, d.nebA, [0.8,0.85,0.95], false)
+  ];
+  planets.forEach(p=>{ respawnPlanet(p, false); spaceScene.add(p); });
+
+  // Render target scena
+  spaceTarget = new WebGLRenderTarget(1,1,{
+    minFilter:LinearFilter, magFilter:LinearFilter, depthBuffer:true
+  });
+  spaceTarget.texture.colorSpace = SRGBColorSpace;
+
+  // Compositing finale
+  composite = new ShaderMaterial({
+    vertexShader: FULLSCREEN_VERTEX,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      varying vec2 vUv;
+      uniform sampler2D tSpace;
+      uniform sampler2D tFluid;
+      uniform sampler2D tDye;
+      uniform vec3  uAccent;
+      uniform float uRefract, uGlow, uAberr, uDye;
+      uniform float uTime, uBeat, uAspect, uWarp, uFlash, uSpeed;
+      uniform vec2  uResolution;
+
+      void main(){
+        vec2 uv = vUv;
+        vec2 c = uv - 0.5; c.x *= uAspect;
+        float r = length(c);
+
+        /* Risucchio a spirale verso il punto di fuga: cresce con la velocità,
+           esplode durante il salto */
+        float ang = atan(c.y, c.x);
+        float sw = (0.10*uSpeed + 0.85*uWarp) * smoothstep(0.85, 0.08, r);
+        float an2 = ang + sw;
+        vec2 cs = vec2(cos(an2), sin(an2)) * r;
+        cs.x /= uAspect;
+        vec2 suv = cs + 0.5;
+
+        vec3 fl = texture2D(tFluid, vUv).rgb;
+        vec2 vel = fl.rg;
+        float den = fl.b;
+
+        vec2 off = vel * uRefract * (1.0 + uBeat * 3.0);
+        float ab = uAberr * length(off) * (1.0 + uBeat * 2.0) + uWarp * 0.02;
+
+        vec3 base;
+        base.r = texture2D(tSpace, suv + off*(1.0+ab)).r;
+        base.g = texture2D(tSpace, suv + off).g;
+        base.b = texture2D(tSpace, suv + off*(1.0-ab)).b;
+
+        /* Tunnel: blur radiale verso il centro durante il salto */
+        vec3 zoom = vec3(0.0);
+        for(int i=1;i<=6;i++){
+          float t = float(i)/6.0;
+          vec2 zuv = (suv-0.5)*(1.0 - 0.28*uWarp*t) + 0.5;
+          zoom += texture2D(tSpace, zuv + off).rgb;
+        }
+        zoom /= 6.0;
+        vec3 col = mix(base, zoom, clamp(uWarp*0.9, 0.0, 0.9)) * 1.3;
+
+        vec3 bloom = vec3(0.0);
+        for(float i=1.0;i<=4.0;i+=1.0){
+          float bd = i * 0.005 * (1.0 + uBeat + uWarp);
+          bloom += texture2D(tSpace, suv + vec2(bd,0.0)).rgb;
+          bloom += texture2D(tSpace, suv - vec2(bd,0.0)).rgb;
+          bloom += texture2D(tSpace, suv + vec2(0.0,bd)).rgb;
+          bloom += texture2D(tSpace, suv - vec2(0.0,bd)).rgb;
+        }
+        bloom /= 16.0;
+        col += bloom * uGlow * (0.4 + uBeat * 0.8 + uWarp * 0.8);
+
+        /* Cuore luminoso al punto di fuga */
+        col += uAccent * pow(max(0.0, 1.0 - r*2.0), 2.0) * (0.08 + uSpeed*0.28 + uWarp*0.9);
+        col += vec3(1.0,0.98,0.95) * pow(max(0.0, 1.0 - r*3.2), 3.0) * (uSpeed*0.20 + uWarp*1.3);
+
+        col += texture2D(tDye, vUv).rgb * uDye * 0.45 * (1.0 + uBeat * 2.0);
+        col += vec3(0.8,0.95,1.0) * uBeat * 0.10 * den;
+
+        /* Anello dimensionale ai bordi durante il warp */
+        col += uAccent * uWarp * pow(r*1.5, 2.5) * 0.35;
+        col += uFlash;
+
+        float vig = 1.0 - dot(c,c) * (0.38 + uBeat * 0.55 - uWarp * 0.3);
+        col *= clamp(vig, 0.0, 1.0);
+
+        float grain = fract(sin(dot(vUv * uResolution, vec2(12.9898,78.233)) + uTime) * 43758.5453);
+        col += (grain - 0.5) * 0.03;
+
+        float scan = sin(vUv.y * uResolution.y * 0.7) * 0.5 + 0.5;
+        col *= 0.93 + scan * 0.07;
+
+        col = max(col, vec3(0.0)); /* pow con base negativa = NaN = pixel bianchi */
+        col = pow(col, vec3(0.88, 0.95, 1.05));
+        col = (col - 0.5) * (1.05 + uBeat * 0.2) + 0.5;
+        col = clamp(col, 0.0, 1.0);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    uniforms:{
+      tSpace:new Uniform(null), tFluid:new Uniform(fluid.densityTexture), tDye:new Uniform(fluid.dyeTexture),
+      uAccent:new Uniform(new Vector3(0,0.94,1)),
+      uRefract:new Uniform(INK.refract), uGlow:new Uniform(INK.glow),
+      uAberr:new Uniform(INK.aberr), uDye:new Uniform(INK.dye),
+      uTime:new Uniform(0), uBeat:new Uniform(0), uAspect:new Uniform(1),
+      uWarp:new Uniform(0), uFlash:new Uniform(0), uSpeed:new Uniform(0),
+      uResolution:new Uniform(new Vector2(1,1))
+    }
+  });
+  pass = new FullscreenPass(composite);
+  applyDimension(DIMENSIONS[dimIndex], false);
+  resize();
+  addEventListener("resize", resize);
+}
+
+/* Texture morbida per le nuvole nebulari: blob radiali accumulati su canvas */
+function makeCloudTexture(){
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const x = c.getContext("2d");
+  x.fillStyle = "rgba(0,0,0,0)"; x.fillRect(0,0,256,256);
+  for(let i=0;i<46;i++){
+    const px = 40+Math.random()*176, py = 40+Math.random()*176;
+    const r = 14+Math.random()*46;
+    const g = x.createRadialGradient(px,py,0,px,py,r);
+    const al = 0.05+Math.random()*0.09;
+    g.addColorStop(0, "rgba(255,255,255,"+al+")");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.beginPath(); x.arc(px,py,r,0,Math.PI*2); x.fill();
+  }
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/* I colori del tunnel vengono ripescati dalla palette della dimensione */
+function paintStreaks(d){
+  const cols = d.streaks.map(h=>new Color(h));
+  for(let i=0;i<WARP_N;i++){
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    const b = 0.35+Math.random()*0.65;
+    warpCol[i*6]  =c.r*b; warpCol[i*6+1]=c.g*b; warpCol[i*6+2]=c.b*b;   // testa
+    warpCol[i*6+3]=c.r*b*0.15; warpCol[i*6+4]=c.g*b*0.15; warpCol[i*6+5]=c.b*b*0.15; // coda
+  }
+  warpLines.geometry.attributes.color.needsUpdate = true;
+}
+function paintShards(d){
+  const cols = d.streaks.map(h=>new Color(h));
+  for(let i=0;i<SHARD_N;i++){
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    const b = 0.3+Math.random()*0.7;
+    for(let v=0;v<3;v++){
+      shardCol[i*9+v*3]  =c.r*b; shardCol[i*9+v*3+1]=c.g*b; shardCol[i*9+v*3+2]=c.b*b;
+    }
+  }
+  shards.geometry.attributes.color.needsUpdate = true;
+}
+function paintClouds(d){
+  const cols = [d.nebA, d.nebB, [d.nebA[0]*0.5+0.3, d.nebA[1]*0.5+0.3, d.nebA[2]*0.5+0.4]];
+  clouds.forEach(sp=>{
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    sp.material.color.setRGB(c[0], c[1], c[2]);
+  });
+}
+
+function respawnAsteroid(ast, spread){
+  ast.position.set((Math.random()-0.5)*80, (Math.random()-0.5)*50,
+    spread ? -Math.random()*180 : -(170+Math.random()*50));
+  ast.scale.setScalar(0.25+Math.pow(Math.random(),1.6)*2.6);
+  ast.rotation.set(Math.random()*6, Math.random()*6, Math.random()*6);
+}
+
+function resize(){
+  const w=Math.max(1,innerWidth), h=Math.max(1,innerHeight);
+  const dpr=Math.min(devicePixelRatio||1,2);
+  renderer.setSize(w,h,false);
+  fluid.resize(w,h);
+  spaceTarget.setSize(Math.floor(w*dpr), Math.floor(h*dpr));
+  spaceCamera.aspect = w/h;
+  spaceCamera.updateProjectionMatrix();
+  composite.uniforms.uAspect.value = w/h;
+  composite.uniforms.uResolution.value.set(w*dpr, h*dpr);
+}
+
+/* ===================================================================== DIMENSIONI: APPLY */
+function hexToVec3(hex){
+  const c = new Color(hex);
+  return new Vector3(c.r, c.g, c.b);
+}
+function applyDimension(d, repositionPlanets=true){
+  const root = document.documentElement;
+  root.style.setProperty('--accent', d.hex);
+  root.style.setProperty('--accent-rgb', d.rgb);
+  $("#dim-name").textContent = "DIM "+String(dimIndex+1).padStart(2,'0')+" · "+d.name;
+  $("#tel-dim").textContent = String(dimIndex+1).padStart(2,'0');
+  $("#sys-sector").textContent = d.code+"-"+(100+Math.floor(Math.random()*900));
+
+  renderer.setClearColor(new Color(d.bg), 1);
+  spaceScene.fog.color.set(d.fog);
+  sunLight.color.set(d.sun);
+  rimLight.color.set(d.rim);
+  nebulaMat.uniforms.uColA.value = d.nebA.slice();
+  nebulaMat.uniforms.uColB.value = d.nebB.slice();
+  starsMat.color.set(d.star);
+  dust.material.color.set(d.dust);
+  paintStreaks(d); paintShards(d); paintClouds(d);
+  vortexMat.uniforms.uTint.value = hexToVec3(d.hex);
+  trail.material.color.set(d.engine);
+  astMat.color.set(d.ast);
+  cockpitMat.color.set(d.hex);
+  cockpitMat.emissive.set(d.hex);
+  engineMats.forEach(m=>m.emissive.set(d.engine));
+  engineGlows.forEach(g=>g.material.color.set(d.engine));
+  engineLights.forEach(l=>l.color.set(d.engine));
+  planets.forEach((p,i)=>{
+    const variants = [
+      [d.nebA, [d.nebB[0]+0.2,d.nebB[1]+0.2,d.nebB[2]+0.3]],
+      [d.nebB, d.nebA],
+      [d.nebA, [0.8,0.85,0.95]]
+    ][i%3];
+    p.userData.mat.uniforms.uTintA.value = variants[0].slice();
+    p.userData.mat.uniforms.uTintB.value = variants[1].slice();
+    if(p.userData.ringMat) p.userData.ringMat.uniforms.uTint.value = variants[1].slice();
+    if(repositionPlanets) respawnPlanet(p, true);
+  });
+  composite.uniforms.uAccent.value = hexToVec3(d.hex);
+}
+
+function startWarp(){
+  if(warpPhase!=="idle" || !running) return;
+  warpPhase="charge"; warpT=0;
+  $("#warp-banner").classList.add("on");
+}
+function switchDimension(){
+  dimIndex = (dimIndex+1) % DIMENSIONS.length;
+  applyDimension(DIMENSIONS[dimIndex]);
+}
+addEventListener("keydown", e=>{
+  if(e.key==="w" || e.key==="W") startWarp();
+});
+
+/* ===================================================================== FLUIDO: DITA & BEAT */
+function dyeFor(level, mix){
+  const d = DIMENSIONS[dimIndex];
+  const t = clamp01(level*0.8 + mix*0.4);
+  return [ lerp(d.dyeA[0],d.dyeB[0],t)*0.9, lerp(d.dyeA[1],d.dyeB[1],t)*0.9, lerp(d.dyeA[2],d.dyeB[2],t)*0.9 ];
+}
+
+function injectFingers(){
+  for(const ch of channels){
+    if(!ch.hand) continue;
+    const hand = live[ch.hand];
+    const f = hand && hand.fingers[ch.finger];
+    const key = ch.hand+":"+ch.finger;
+    if(!f || f.ext < CFG.splatMin){ prevTip[key]=null; continue; }
+    const px = f.x, py = f.y;
+    const p = prevTip[key];
+    prevTip[key] = { x:px, y:py };
+    if(!p) continue;
+    const dx = (px-p.x)*innerWidth;
+    const dy = (py-p.y)*innerHeight;
+    if(Math.abs(dx)+Math.abs(dy) < 0.6) continue;
+    fluid.splatRadius = 0.0009 + f.ext*0.0028;
+    const force = CFG.splatForce * (0.4 + ch.level*1.2);
+    fluid.addSplat(px, py, dx*force, dy*force, { dyeColor: dyeFor(ch.level, mixSmooth) });
+  }
+}
+
+function beatBurst(low){
+  const d = DIMENSIONS[dimIndex];
+  const n = 12, amp = CFG.beatBurst * (0.5 + low*3.0);
+  const spin = Math.random()*Math.PI*2;
+  for(let i=0;i<n;i++){
+    const a = spin + (i/n)*Math.PI*2;
+    const r = 0.10 + Math.random()*0.14;
+    fluid.splatRadius = 0.0016 + Math.random()*0.0014;
+    const t = Math.random()*0.5;
+    fluid.addSplat(0.5+Math.cos(a)*r, 0.42+Math.sin(a)*r*0.85,
+      Math.cos(a)*amp*320, Math.sin(a)*amp*320,
+      { dyeColor:[ lerp(d.burst[0],d.dyeB[0],t), lerp(d.burst[1],d.dyeB[1],t), lerp(d.burst[2],d.dyeB[2],t) ] });
+  }
+}
+
+/* ===================================================================== LOOP */
+let lastFrame=performance.now(), errCount=0, demoBeatAcc=0, trailHead=0;
+const camShake = new Vector3();
+
+function updateWarp(dt){
+  if(warpPhase==="charge"){
+    warpT += dt;
+    warpAmt = (warpT/0.8)*0.15;
+    if(warpT>=0.8){ warpPhase="tunnel"; warpT=0; }
+  } else if(warpPhase==="tunnel"){
+    warpT += dt;
+    const p = warpT/1.5;
+    warpAmt = Math.min(1, p*4) * (p<0.85 ? 1 : Math.max(0,1-(p-0.85)/0.15));
+    if(p>=0.8 && !updateWarp.switched){ switchDimension(); flashAmt=1; updateWarp.switched=true; }
+    if(p>=1){
+      warpPhase="idle"; warpAmt=0; updateWarp.switched=false;
+      lastWarpEnd = performance.now()/1000;
+      $("#warp-banner").classList.remove("on");
+    }
+  } else {
+    warpAmt *= Math.pow(0.01, dt);
+  }
+  flashAmt *= Math.pow(0.004, dt);
+}
+
+function updateSpaceScene(dt, now){
+  const d = DIMENSIONS[dimIndex];
+
+  /* Velocità: la musica è il propulsore, il warp lo squarcio */
+  const targetSpeed = (CFG.baseSpeed + mixSmooth*CFG.musicSpeed + beatEnv*CFG.beatSpeed)
+    * (1 + warpAmt*CFG.warpSpeedMul);
+  worldSpeed += (targetSpeed - worldSpeed) * Math.min(1, dt*3);
+  travelled += worldSpeed * dt;
+  const spdNorm = clamp01((worldSpeed - CFG.baseSpeed) / CFG.musicSpeed);
+  speedNorm = spdNorm;
+
+  /* Rotta dalle mani; senza mani, deriva d'autopilota */
+  let tx, ty;
+  let hands=0, hx=0, hy=0;
+  if(live.Left){ hx += live.Left.fingers.index.x; hy += live.Left.fingers.index.y; hands++; }
+  if(live.Right){ hx += live.Right.fingers.index.x; hy += live.Right.fingers.index.y; hands++; }
+  if(hands){
+    tx = (hx/hands - 0.5) * 2 * CFG.steerX;
+    ty = (0.5 - hy/hands) * 2 * CFG.steerY;
+  } else {
+    tx = Math.sin(now*0.42) * 2.4;
+    ty = Math.cos(now*0.31) * 1.5;
+  }
+  const px = spaceship.position.x, py = spaceship.position.y;
+  spaceship.position.x += (tx - px) * Math.min(1, dt*2.4);
+  spaceship.position.y += (ty - py) * Math.min(1, dt*2.4);
+  spaceship.position.z = 0;
+  const vx = (spaceship.position.x - px)/Math.max(dt,1e-4);
+  const vy = (spaceship.position.y - py)/Math.max(dt,1e-4);
+
+  /* Assetto: rollio nelle virate, beccheggio nelle cabrate */
+  spaceship.rotation.z += (-vx*0.10 - spaceship.rotation.z) * Math.min(1, dt*5);
+  spaceship.rotation.x += ( vy*0.05 + Math.sin(now*0.8)*0.02 - spaceship.rotation.x) * Math.min(1, dt*5);
+  spaceship.rotation.y = Math.sin(now*0.5)*0.015;
+
+  /* Motori: respiro col beat, spinta col warp */
+  const es = 1 + beatEnv*0.7 + warpAmt*1.6;
+  engineGlows.forEach(g=>{ g.scale.set(es, es, es*(1+warpAmt*3)); });
+  engineLights.forEach(l=>{ l.intensity = 2 + beatEnv*7 + warpAmt*10; });
+
+  /* Scia: ring buffer dalle due gondole */
+  for(const sx of [-0.9, 0.9]){
+    const i = trailHead % trailCount; trailHead++;
+    trailPos[i*3]   = spaceship.position.x + sx + (Math.random()-0.5)*0.15;
+    trailPos[i*3+1] = spaceship.position.y - 0.02 + (Math.random()-0.5)*0.15;
+    trailPos[i*3+2] = 1.5;
+  }
+  for(let i=0;i<trailCount;i++){
+    if(trailPos[i*3+2]<9000) trailPos[i*3+2] += worldSpeed*dt*0.9;
+    if(trailPos[i*3+2] > 60) trailPos[i*3+2] = 9999;
+  }
+  trail.geometry.attributes.position.needsUpdate=true;
+  trail.material.opacity = 0.3 + beatEnv*0.35 + warpAmt*0.3;
+
+  /* Mondo in corsa: polvere, linee di warp, asteroidi, pianeti */
+  const camZ = spaceCamera.position.z;
+  for(let i=0;i<DUST_N;i++){
+    dustPos[i*3+2] += worldSpeed*dt;
+    if(dustPos[i*3+2] > camZ+2){
+      dustPos[i*3+2] = -150 - Math.random()*20;
+      dustPos[i*3]=(Math.random()-0.5)*70;
+      dustPos[i*3+1]=(Math.random()-0.5)*44;
+    }
+  }
+  dust.geometry.attributes.position.needsUpdate=true;
+  dust.material.opacity = 0.3 + spdNorm*0.4;
+
+  const streak = 0.6 + spdNorm*7 + warpAmt*46;
+  for(let i=0;i<WARP_N;i++){
+    const m = warpMeta[i];
+    m.z += worldSpeed*dt*1.35;
+    if(m.z + streak > camZ - 2){
+      m.z = -170 - Math.random()*40;
+      const a=Math.random()*Math.PI*2, r=4+Math.random()*28;
+      m.x=Math.cos(a)*r; m.y=Math.sin(a)*r;
+    }
+    warpPos[i*6]=m.x;   warpPos[i*6+1]=m.y; warpPos[i*6+2]=m.z;
+    warpPos[i*6+3]=m.x; warpPos[i*6+4]=m.y; warpPos[i*6+5]=m.z+streak;
+  }
+  warpLines.geometry.attributes.position.needsUpdate=true;
+  warpLines.material.opacity = clamp01(0.22 + spdNorm*0.5 + warpAmt*0.9);
+
+  /* Schegge: triangoli allungati lungo la rotta, apice avanti */
+  for(let i=0;i<SHARD_N;i++){
+    const s = shardMeta[i];
+    s.z += worldSpeed*dt*1.15;
+    if(s.z > camZ+6){
+      const a=Math.random()*Math.PI*2, r=6+Math.random()*32;
+      s.x=Math.cos(a)*r; s.y=Math.sin(a)*r; s.z=-180-Math.random()*60;
+      s.len=5+Math.random()*22; s.w=0.08+Math.random()*0.5; s.ca=Math.random()*Math.PI*2;
+    }
+    const wx = Math.cos(s.ca)*s.w, wy = Math.sin(s.ca)*s.w;
+    shardPos[i*9]  =s.x;    shardPos[i*9+1]=s.y;    shardPos[i*9+2]=s.z;
+    shardPos[i*9+3]=s.x+wx; shardPos[i*9+4]=s.y+wy; shardPos[i*9+5]=s.z+s.len;
+    shardPos[i*9+6]=s.x-wx; shardPos[i*9+7]=s.y-wy; shardPos[i*9+8]=s.z+s.len;
+  }
+  shards.geometry.attributes.position.needsUpdate=true;
+  shards.material.opacity = 0.18 + spdNorm*0.4 + warpAmt*0.4;
+
+  /* Nuvole nebulari in corsa laterale */
+  for(const sp of clouds){
+    sp.position.z += worldSpeed*dt*0.55;
+    sp.material.rotation += sp.userData.spin*dt;
+    if(sp.position.z > camZ+30){
+      const a=Math.random()*Math.PI*2, r=14+Math.random()*38;
+      sp.position.set(Math.cos(a)*r, Math.sin(a)*r, -220-Math.random()*60);
+      sp.scale.setScalar(24+Math.random()*46);
+    }
+  }
+
+  /* Vortice al punto di fuga */
+  vortex.position.x = spaceship.position.x*0.6;
+  vortex.position.y = spaceship.position.y*0.6;
+  vortex.rotation.z += dt*(0.15 + warpAmt*1.2);
+  vortexMat.uniforms.uTime.value = now;
+  vortexMat.uniforms.uInt.value = 0.22 + spdNorm*0.45 + warpAmt*1.1 + beatEnv*0.12;
+
+  for(const a of asteroids){
+    a.position.z += worldSpeed*dt*0.92;
+    a.rotation.x += a.userData.rsx*dt;
+    a.rotation.y += a.userData.rsy*dt;
+    if(a.position.z > camZ+10) respawnAsteroid(a, false);
+  }
+  for(const p of planets){
+    p.position.z += worldSpeed*dt*0.12;
+    p.rotation.y += dt*0.02;
+    p.userData.mat.uniforms.uTime.value = now;
+    if(p.position.z > 40) respawnPlanet(p, true);
+  }
+  stars.rotation.z += dt*0.004;
+  nebulaMat.uniforms.uTime.value = now;
+  nebulaMat.uniforms.uWarp.value = warpAmt;
+
+  /* Camera-inseguitore: ritardo, scossa, FOV che si apre con la velocità */
+  const shake = beatEnv*0.05 + (warpPhase==="charge" ? warpT*0.16 : 0) + warpAmt*0.06;
+  camShake.set((Math.random()-0.5)*shake, (Math.random()-0.5)*shake, 0);
+  spaceCamera.position.x += (spaceship.position.x*0.55 - spaceCamera.position.x) * Math.min(1, dt*2.2);
+  spaceCamera.position.y += ((spaceship.position.y*0.55 + 1.6) - spaceCamera.position.y) * Math.min(1, dt*2.2);
+  spaceCamera.position.z = 7;
+  spaceCamera.position.add(camShake);
+  spaceCamera.lookAt(spaceship.position.x*0.8, spaceship.position.y*0.8, -14);
+  spaceCamera.rotateZ(-spaceship.rotation.z*0.35);
+  const fov = 58 + spdNorm*13 + beatEnv*3 + warpAmt*26;
+  if(Math.abs(fov-spaceCamera.fov)>0.05){ spaceCamera.fov=fov; spaceCamera.updateProjectionMatrix(); }
+}
+
+function frame(now){
+  if(!running) return;
+  const dt = Math.min((now-lastFrame)/1000, 0.1);
+  lastFrame = now;
+  try{
+    if(landmarker) detect(now);
+    channels.forEach(ch=>{
+      if(!ch.hand){ ch.level=CFG.idleGain; ch.gain.gain.rampTo(CFG.idleGain, CFG.rampSeconds); }
+      else{ const hand=live[ch.hand]; applyFinger(ch, hand?hand.fingers[ch.finger]:null, hand?hand.wristY:0, dt); }
+    });
+    updateStrips();
+
+    /* Energia: dal mixer reale, o sintetica in demo */
+    let rms, low;
+    if(demoMode){
+      rms = 0.17 + 0.15*Math.sin(now*0.0011) + 0.06*Math.sin(now*0.0053);
+      low = 0.14 + 0.13*Math.sin(now*0.0007+2.0);
+      const spb = 60/(Number($("#bpm").value)||120);
+      demoBeatAcc += dt;
+      if(demoBeatAcc >= spb){ demoBeatAcc -= spb; beatEnv=1; if(fluid) beatBurst(safe(low,0,1)); }
+    } else {
+      rms = safe(fullMeter.getValue(),0,1);
+      low = safe(lowMeter.getValue(),0,1);
+    }
+    beatEnv *= Math.pow(0.028, dt);
+    const mixTarget = clamp01(rms*1.9 + low*1.1 + beatEnv*0.45);
+    mixSmooth += (mixTarget - mixSmooth) * Math.min(1, dt*3.2);
+    const m = mixSmooth;
+    const intensityMul = Number($("#intensity").value) || 2;
+
+    /* Salto automatico quando l'energia resta alta */
+    const nowSec = now/1000;
+    if(m > CFG.warpEnergy) highEnergyT += dt; else highEnergyT = Math.max(0, highEnergyT - dt*2);
+    if(highEnergyT > CFG.warpEnergyHold && nowSec - lastWarpEnd > CFG.warpCooldown && warpPhase==="idle"){
+      highEnergyT = 0;
+      startWarp();
+    }
+    updateWarp(dt);
+
+    composite.uniforms.uRefract.value = lerp(INK.refract, HEAT.refract, m) * intensityMul;
+    composite.uniforms.uGlow.value    = lerp(INK.glow,    HEAT.glow,    m) * intensityMul;
+    composite.uniforms.uAberr.value   = lerp(INK.aberr,   HEAT.aberr,   m) * intensityMul;
+    composite.uniforms.uDye.value     = lerp(INK.dye,     HEAT.dye,     m) * intensityMul;
+    composite.uniforms.uBeat.value    = beatEnv;
+    composite.uniforms.uTime.value    = now * 0.001;
+    composite.uniforms.uWarp.value    = warpAmt;
+    composite.uniforms.uFlash.value   = flashAmt;
+    composite.uniforms.uSpeed.value   = speedNorm;
+    fluid.curlStrength        = lerp(INK.curl, HEAT.curl, m) * (1.0 + beatEnv*0.5);
+    fluid.velocityDissipation = lerp(INK.vd,   HEAT.vd,   m);
+    fluid.densityDissipation  = lerp(INK.dd,   HEAT.dd,   m);
+    fluid.dyeDissipation      = lerp(INK.dd,   HEAT.dd,   m) - 0.01;
+
+    updateSpaceScene(dt, now*0.001);
+
+    if(DEBUG_DIRECT){
+      renderer.setRenderTarget(null);
+      renderer.render(spaceScene, spaceCamera);
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    renderer.setRenderTarget(spaceTarget);
+    renderer.clear();
+    renderer.render(spaceScene, spaceCamera);
+    renderer.setRenderTarget(null);
+
+    injectFingers();
+    fluid.step(Math.min(Math.max(dt,1e-6), 1/60));
+
+    composite.uniforms.tSpace.value = spaceTarget.texture;
+    composite.uniforms.tFluid.value = fluid.densityTexture;
+    composite.uniforms.tDye.value = fluid.dyeTexture;
+    pass.render(renderer, null);
+
+    /* HUD */
+    const elapsed = Math.floor((now-sessionStart)/1000);
+    const mm=String(Math.floor(elapsed/60)).padStart(2,'0'), ss=String(elapsed%60).padStart(2,'0');
+    $("#tel-velocity").textContent = warpAmt>0.5 ? "×c" : worldSpeed.toFixed(1);
+    $("#tel-dist").textContent = (travelled/1000).toFixed(2)+" UA";
+    $("#tel-session").textContent = mm+":"+ss;
+    $("#tel-hands").textContent = (live.Left?1:0)+(live.Right?1:0);
+    $("#tel-fps").textContent = landmarker ? Math.round(fpsAvg)+" fps" : "demo";
+    $("#tel-beat").textContent = beatEnv.toFixed(2);
+    $("#pos-x").textContent = spaceship.position.x.toFixed(1);
+    $("#pos-y").textContent = spaceship.position.y.toFixed(1);
+    $("#sys-fps").textContent = Math.round(1/Math.max(dt,1e-4));
+
+  }catch(err){ console.error(err); if(++errCount<4) showErr(err.message||String(err)); }
+  requestAnimationFrame(frame);
+}
+
+function showErr(msg){
+  const el = $("#err");
+  el.textContent = msg; el.style.opacity = 1;
+  clearTimeout(showErr.t);
+  showErr.t = setTimeout(()=>{ el.style.opacity=0; }, 6000);
+}
+
+/* ===================================================================== STRISCE */
+let stripEls=[];
+function buildStrips(){
+  const host=$("#strips"); host.innerHTML="";
+  stripEls = channels.map(ch=>{
+    const el=document.createElement("div");
+    el.className="strip";
+    if(ch.hand) el.dataset.hand=ch.hand;
+    el.innerHTML='<div class="lbl"><span>'+ch.name+'</span><span class="fng">'+
+      (ch.hand?FINGER_IT[ch.finger]:"fisso")+' <span class="val"></span></span></div>'+
+      '<div class="meter"><i></i></div>';
+    host.appendChild(el);
+    return { bar:el.querySelector("i"), val:el.querySelector(".val") };
+  });
+}
+function updateStrips(){
+  channels.forEach((ch,i)=>{
+    const v = ch.hand ? ch.level : CFG.idleGain;
+    stripEls[i].bar.style.width = (v*100).toFixed(0)+"%";
+    stripEls[i].val.textContent = ch.hand ? ch.raw.toFixed(2) : "";
+  });
+}
+
+/* ===================================================================== AVVIO / ARRESTO */
+async function start(demo){
+  demoMode = !!demo;
+  $("#go").disabled = true;
+  $("#setup").style.display="none";
+  $("#loader").style.display="grid";
+  try{
+    let buffers=[];
+    if(!demoMode){
+      buffers = await preload();
+      $("#loadTitle").textContent = "Accendo la camera";
+      $("#loadWhat").textContent = "Consenti l'accesso quando il browser lo chiede";
+      await buildTracking();
+      await buildAudio(buffers);
+    } else {
+      channels = [];
+      $("#loadTitle").textContent = "Modalità demo";
+      $("#loadWhat").textContent = "Solo scena, beat sintetico";
+    }
+
+    $("#loader").style.display="none";
+    $("#stage").style.display="block";
+    buildScene();
+    buildStrips();
+    sessionStart = performance.now();
+
+    if(!demoMode){
+      Tone.getTransport().scheduleRepeat(()=>{
+        beatEnv = 1;
+        if(fluid) beatBurst(safe(lowMeter.getValue(),0,1));
+      }, "4n");
+      Tone.getTransport().scheduleRepeat(()=>{ startWarp(); }, CFG.warpEveryMeasures+"m");
+      Tone.getTransport().start();
+    }
+
+    running = true;
+    lastFrame = performance.now();
+    requestAnimationFrame(frame);
+  }catch(err){
+    console.error(err);
+    $("#loader").style.display="none";
+    $("#setup").style.display="block";
+    $("#status").className="warn";
+    $("#status").textContent = describe(err);
+    $("#go").disabled = false;
+  }
+}
+
+function describe(err){
+  const n = err?.name || "";
+  if(n==="NotAllowedError") return "Accesso alla webcam negato. Consenti la camera e riprova.";
+  if(n==="NotFoundError")   return "Nessuna webcam trovata su questo dispositivo.";
+  if(n==="EncodingError")   return "Un file audio non è decodificabile: converti gli stem in .m4a o .mp3.";
+  return "Avvio non riuscito: " + (err?.message || err);
+}
+
+$("#quit").onclick = ()=>{
+  running=false;
+  if(!demoMode){
+    Tone.getTransport().stop(); Tone.getTransport().cancel();
+    channels.forEach(ch=>ch.player.dispose());
+    stream?.getTracks().forEach(t=>t.stop());
+  }
+  renderer?.dispose();
+  location.reload();
+};
+
+window.__booted = true;
+</script>
+</body>
+</html>

@@ -14,7 +14,7 @@ npx serve
 python -m http.server 8000
 ```
 
-Apri `http://localhost:8000/astrolancer-segui-la-rotta.html`.
+Apri `http://localhost:8000/` (l'app è `index.html`).
 
 - **Entra** — carica gli stem (WAV/MP3/M4A) scaricati da [MobyGratis](https://mobygratis.com)
   con Ctrl/Cmd+click multiplo. Il mix viene mescolato a caso a ogni sessione,
@@ -25,7 +25,7 @@ Apri `http://localhost:8000/astrolancer-segui-la-rotta.html`.
 ## Struttura
 
 ```
-astrolancer-segui-la-rotta.html   pagina unica: UI, audio (Tone.js), tracking (MediaPipe), scena (three.js)
+index.html                        pagina unica: UI, audio (Tone.js), tracking (MediaPipe), scena (three.js)
 three-fluid-fx.es.js              simulazione fluida + compositing pass
 stems/manifest.json               esempio di manifest per il catalogo online
 ```
@@ -41,3 +41,8 @@ stems/manifest.json               esempio di manifest per il catalogo online
 | Indici (posizione media) | Rotta della navicella |
 
 Brand: [astrolancer.it](https://astrolancer.it) — font Bricolage Grotesque, titolo "Segui la rotta".
+
+## Online
+
+Il sito è pubblicato con GitHub Pages: **https://monesi96.github.io/astrospacemusic/**
+(serve HTTPS, quindi la webcam funziona direttamente dal browser, senza server locale).

@@ -70,9 +70,11 @@
   #pct{margin-top:14px;color:var(--accent);letter-spacing:.2em;font-size:11px}
 
   #stage{position:fixed;inset:0;z-index:5;display:none}
-  #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-  #cam{position:absolute;left:18px;bottom:80px;width:120px;border:1px solid var(--line);
-    transform:scaleX(-1);opacity:.22;z-index:2}
+  #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+  /* Webcam fantasma: a tutto schermo, ci si intravede dentro lo spazio */
+  #cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    transform:scaleX(-1);opacity:.14;z-index:1;mix-blend-mode:screen;
+    filter:grayscale(0.6) contrast(1.15) brightness(0.9);pointer-events:none}
 
   #strips{position:absolute;right:0;top:80px;bottom:80px;width:min(44vw,260px);z-index:2;
     display:flex;flex-direction:column;justify-content:center;gap:7px;padding:18px;pointer-events:none}
@@ -143,7 +145,7 @@
   #diag h3{font:400 26px/1.3 "Bricolage Grotesque",serif;color:var(--accent);margin:0 0 18px}
   #diag p{margin:0 0 12px;color:#8B98B8;max-width:62ch}
 
-  @media (max-width:640px){ #cam{width:90px} #strips{width:50vw;padding:12px;top:70px}
+  @media (max-width:640px){ #strips{width:50vw;padding:12px;top:70px}
     #hud-telemetry{left:14px;top:65px;padding:10px 12px;min-width:120px}
     #hud-title{letter-spacing:0.2em} }
 </style>
@@ -285,8 +287,9 @@ import {
   ShaderMaterial, Uniform, Vector2, Vector3, Group, Mesh,
   MeshStandardMaterial, MeshBasicMaterial, PointLight, AmbientLight, DirectionalLight,
   BufferGeometry, Float32BufferAttribute, Points, PointsMaterial, LineSegments, LineBasicMaterial,
-  AdditiveBlending, DoubleSide, BackSide, FogExp2,
-  CylinderGeometry, SphereGeometry, IcosahedronGeometry, BoxGeometry, ConeGeometry, RingGeometry
+  AdditiveBlending, DoubleSide, BackSide, FogExp2, Sprite, SpriteMaterial, CanvasTexture,
+  CylinderGeometry, SphereGeometry, IcosahedronGeometry, BoxGeometry, ConeGeometry, RingGeometry,
+  PlaneGeometry
 } from "three";
 import { FluidSimulation, FullscreenPass, FULLSCREEN_VERTEX } from "three-fluid-fx";
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
@@ -313,23 +316,27 @@ const HEAT = { refract:0.14,  glow:0.32, aberr:18, dye:0.55, curl:3.6, vd:0.948,
 const DIMENSIONS = [
   { name:"SETTORE CIANO",     code:"CY", hex:"#00f0ff", rgb:"0,240,255",
     bg:0x020408, fog:0x041019, sun:0xaaccff, rim:0x0044aa,
-    nebA:[0.00,0.30,0.45], nebB:[0.10,0.02,0.35], star:0x9fd8ff,
+    nebA:[0.06,0.22,0.60], nebB:[0.30,0.04,0.55], star:0x9fd8ff,
     engine:0xff6a00, dust:0x00aaff, ast:0x334455,
+    streaks:["#9fe8ff","#ffffff","#5f7bff","#b48fff"],
     dyeA:[0.02,0.35,0.45], dyeB:[0.25,0.85,1.00], burst:[0.05,0.30,0.40] },
   { name:"IPERSPAZIO MAGENTA",code:"MG", hex:"#ff3fd6", rgb:"255,63,214",
     bg:0x070310, fog:0x14041c, sun:0xffb0e8, rim:0x5500aa,
-    nebA:[0.42,0.02,0.38], nebB:[0.05,0.02,0.30], star:0xffc4f0,
+    nebA:[0.48,0.04,0.48], nebB:[0.10,0.04,0.45], star:0xffc4f0,
     engine:0x30f0ff, dust:0xff55cc, ast:0x453349,
+    streaks:["#ff9fe8","#ffffff","#b45fff","#ff5f8f"],
     dyeA:[0.38,0.02,0.30], dyeB:[1.00,0.30,0.85], burst:[0.35,0.04,0.28] },
   { name:"DERIVA AMBRA",      code:"AM", hex:"#ffb347", rgb:"255,179,71",
     bg:0x080502, fog:0x180d02, sun:0xffd9a0, rim:0xaa3300,
-    nebA:[0.48,0.22,0.02], nebB:[0.30,0.04,0.10], star:0xffe0b0,
+    nebA:[0.55,0.26,0.04], nebB:[0.40,0.06,0.16], star:0xffe0b0,
     engine:0x25c8ff, dust:0xffaa44, ast:0x4a3d2c,
+    streaks:["#ffd89f","#ffffff","#ff8f5f","#ffdf3f"],
     dyeA:[0.42,0.18,0.02], dyeB:[1.00,0.70,0.20], burst:[0.38,0.20,0.03] },
   { name:"VUOTO SMERALDO",    code:"SM", hex:"#39ffb0", rgb:"57,255,176",
     bg:0x020806, fog:0x03150e, sun:0xa0ffd8, rim:0x008855,
-    nebA:[0.02,0.40,0.22], nebB:[0.00,0.12,0.28], star:0xc0ffe4,
+    nebA:[0.04,0.48,0.30], nebB:[0.02,0.16,0.40], star:0xc0ffe4,
     engine:0xff5533, dust:0x33ffaa, ast:0x2c4a3c,
+    streaks:["#9fffd8","#ffffff","#3fdfff","#dfff8f"],
     dyeA:[0.02,0.36,0.18], dyeB:[0.30,1.00,0.65], burst:[0.03,0.32,0.16] },
 ];
 
@@ -556,13 +563,15 @@ let renderer, fluid, spaceScene, spaceCamera, spaceTarget, composite, pass;
 let spaceship, engineGlows=[], engineLights=[], engineMats=[], cockpitMat=null;
 let trail, trailPos, trailCount=160;
 let asteroids=[], astMat=null, planets=[], nebulaMat=null, stars=null, starsMat=null;
-let dust=null, dustPos=null, warpLines=null, warpPos=null, warpMeta=null;
+let dust=null, dustPos=null, warpLines=null, warpPos=null, warpCol=null, warpMeta=null;
+let shards=null, shardPos=null, shardCol=null, shardMeta=null;
+let clouds=[], vortex=null, vortexMat=null;
 let sunLight=null, rimLight=null;
 let beatEnv=0, mixSmooth=0, sessionStart=0;
-let worldSpeed=0, travelled=0;
+let worldSpeed=0, travelled=0, speedNorm=0;
 let dimIndex=0, warpPhase="idle", warpT=0, warpAmt=0, flashAmt=0, lastWarpEnd=-1e9, highEnergyT=0;
 const prevTip = {};
-const DUST_N=2600, WARP_N=420, AST_N=46;
+const DUST_N=2600, WARP_N=1100, AST_N=46, SHARD_N=110, CLOUD_N=26;
 
 function quality(){
   const q = $("#quality").value;
@@ -657,7 +666,7 @@ const NEBULA_FRAG = /* glsl */`
     float n2 = fbm(sph*vec2(4.5,6.0) - uTime*0.008 + 7.31);
     vec3 col = mix(uColA, uColB, n) * (0.12 + 0.85*n*n2);
     col += uColB * pow(n2, 6.0) * 0.6;
-    col *= 0.4 + uWarp*0.5;
+    col *= 0.55 + uWarp*0.5;
     gl_FragColor = vec4(col, 1.0);
   }`;
 
@@ -814,19 +823,78 @@ function buildScene(){
   dust.frustumCulled = false;
   spaceScene.add(dust);
 
-  // Linee di warp: si allungano con la velocità
+  // Tunnel di streak: il corpo dell'iperspazio, sempre attivo
   const wGeo = new BufferGeometry();
   warpPos = new Float32Array(WARP_N*6);
+  warpCol = new Float32Array(WARP_N*6);
   warpMeta = [];
   for(let i=0;i<WARP_N;i++){
-    const a=Math.random()*Math.PI*2, r=4+Math.random()*28;
+    const a=Math.random()*Math.PI*2, r=4+Math.random()*32;
     warpMeta.push({ x:Math.cos(a)*r, y:Math.sin(a)*r, z:-Math.random()*180 });
   }
   wGeo.setAttribute('position', new Float32BufferAttribute(warpPos,3));
-  warpLines = new LineSegments(wGeo, new LineBasicMaterial({ color:d.hex, transparent:true,
+  wGeo.setAttribute('color', new Float32BufferAttribute(warpCol,3));
+  warpLines = new LineSegments(wGeo, new LineBasicMaterial({ vertexColors:true, transparent:true,
     opacity:0.0, blending:AdditiveBlending, depthWrite:false, fog:false }));
   warpLines.frustumCulled = false;
   spaceScene.add(warpLines);
+  paintStreaks(d);
+
+  // Schegge grafiche: triangoli duri che sfrecciano (dalla reference inktober)
+  const shGeo = new BufferGeometry();
+  shardPos = new Float32Array(SHARD_N*9);
+  shardCol = new Float32Array(SHARD_N*9);
+  shardMeta = [];
+  for(let i=0;i<SHARD_N;i++){
+    const a=Math.random()*Math.PI*2, r=6+Math.random()*32;
+    shardMeta.push({ x:Math.cos(a)*r, y:Math.sin(a)*r, z:-Math.random()*180,
+      len:5+Math.random()*22, w:0.08+Math.random()*0.5, ca:Math.random()*Math.PI*2 });
+  }
+  shGeo.setAttribute('position', new Float32BufferAttribute(shardPos,3));
+  shGeo.setAttribute('color', new Float32BufferAttribute(shardCol,3));
+  shards = new Mesh(shGeo, new MeshBasicMaterial({ vertexColors:true, transparent:true,
+    opacity:0.35, blending:AdditiveBlending, depthWrite:false, side:DoubleSide, fog:false }));
+  shards.frustumCulled = false;
+  spaceScene.add(shards);
+  paintShards(d);
+
+  // Nuvole nebulari che sfrecciano accanto (stile warp di No Man's Sky)
+  const cloudTex = makeCloudTexture();
+  for(let i=0;i<CLOUD_N;i++){
+    const sp = new Sprite(new SpriteMaterial({ map:cloudTex, transparent:true,
+      opacity:0.14+Math.random()*0.12, blending:AdditiveBlending, depthWrite:false,
+      rotation:Math.random()*Math.PI*2, fog:false }));
+    const a=Math.random()*Math.PI*2, r=14+Math.random()*38;
+    sp.position.set(Math.cos(a)*r, Math.sin(a)*r, -Math.random()*220);
+    sp.scale.setScalar(24+Math.random()*46);
+    sp.userData.spin=(Math.random()-0.5)*0.12;
+    spaceScene.add(sp); clouds.push(sp);
+  }
+  paintClouds(d);
+
+  // Vortice al punto di fuga: la spirale verso cui tutto converge
+  vortexMat = new ShaderMaterial({
+    uniforms:{ uTime:{value:0}, uTint:{value:hexToVec3(d.hex)}, uInt:{value:0.3} },
+    vertexShader:`varying vec2 vUv2; void main(){ vUv2=uv;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`precision mediump float; varying vec2 vUv2;
+      uniform float uTime, uInt; uniform vec3 uTint;
+      void main(){
+        vec2 c = vUv2 - 0.5;
+        float r = length(c)*2.0;
+        float a = atan(c.y, c.x);
+        float spiral = sin(a*3.0 + 4.0/(r+0.15) - uTime*2.4)*0.5+0.5;
+        float arms = smoothstep(0.25, 0.95, spiral) * smoothstep(0.05, 0.35, r);
+        float core = pow(max(0.0, 1.0-r*1.5), 2.4);
+        float fade = smoothstep(1.0, 0.5, r);
+        vec3 col = (uTint*arms*0.55 + vec3(1.0,0.98,0.95)*core*1.3) * fade * uInt;
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+    transparent:true, blending:AdditiveBlending, depthWrite:false, fog:false
+  });
+  vortex = new Mesh(new PlaneGeometry(120,120), vortexMat);
+  vortex.position.set(0,0,-150);
+  spaceScene.add(vortex);
 
   // Asteroidi in corridoio
   astMat = new MeshStandardMaterial({ color:d.ast, metalness:0.35, roughness:0.9, flatShading:true });
@@ -873,13 +941,22 @@ function buildScene(){
       uniform sampler2D tDye;
       uniform vec3  uAccent;
       uniform float uRefract, uGlow, uAberr, uDye;
-      uniform float uTime, uBeat, uAspect, uWarp, uFlash;
+      uniform float uTime, uBeat, uAspect, uWarp, uFlash, uSpeed;
       uniform vec2  uResolution;
 
       void main(){
         vec2 uv = vUv;
         vec2 c = uv - 0.5; c.x *= uAspect;
         float r = length(c);
+
+        /* Risucchio a spirale verso il punto di fuga: cresce con la velocità,
+           esplode durante il salto */
+        float ang = atan(c.y, c.x);
+        float sw = (0.10*uSpeed + 0.85*uWarp) * smoothstep(0.85, 0.08, r);
+        float an2 = ang + sw;
+        vec2 cs = vec2(cos(an2), sin(an2)) * r;
+        cs.x /= uAspect;
+        vec2 suv = cs + 0.5;
 
         vec3 fl = texture2D(tFluid, vUv).rgb;
         vec2 vel = fl.rg;
@@ -889,15 +966,15 @@ function buildScene(){
         float ab = uAberr * length(off) * (1.0 + uBeat * 2.0) + uWarp * 0.02;
 
         vec3 base;
-        base.r = texture2D(tSpace, uv + off*(1.0+ab)).r;
-        base.g = texture2D(tSpace, uv + off).g;
-        base.b = texture2D(tSpace, uv + off*(1.0-ab)).b;
+        base.r = texture2D(tSpace, suv + off*(1.0+ab)).r;
+        base.g = texture2D(tSpace, suv + off).g;
+        base.b = texture2D(tSpace, suv + off*(1.0-ab)).b;
 
         /* Tunnel: blur radiale verso il centro durante il salto */
         vec3 zoom = vec3(0.0);
         for(int i=1;i<=6;i++){
           float t = float(i)/6.0;
-          vec2 zuv = (uv-0.5)*(1.0 - 0.28*uWarp*t) + 0.5;
+          vec2 zuv = (suv-0.5)*(1.0 - 0.28*uWarp*t) + 0.5;
           zoom += texture2D(tSpace, zuv + off).rgb;
         }
         zoom /= 6.0;
@@ -906,13 +983,17 @@ function buildScene(){
         vec3 bloom = vec3(0.0);
         for(float i=1.0;i<=4.0;i+=1.0){
           float bd = i * 0.005 * (1.0 + uBeat + uWarp);
-          bloom += texture2D(tSpace, uv + vec2(bd,0.0)).rgb;
-          bloom += texture2D(tSpace, uv - vec2(bd,0.0)).rgb;
-          bloom += texture2D(tSpace, uv + vec2(0.0,bd)).rgb;
-          bloom += texture2D(tSpace, uv - vec2(0.0,bd)).rgb;
+          bloom += texture2D(tSpace, suv + vec2(bd,0.0)).rgb;
+          bloom += texture2D(tSpace, suv - vec2(bd,0.0)).rgb;
+          bloom += texture2D(tSpace, suv + vec2(0.0,bd)).rgb;
+          bloom += texture2D(tSpace, suv - vec2(0.0,bd)).rgb;
         }
         bloom /= 16.0;
         col += bloom * uGlow * (0.4 + uBeat * 0.8 + uWarp * 0.8);
+
+        /* Cuore luminoso al punto di fuga */
+        col += uAccent * pow(max(0.0, 1.0 - r*2.0), 2.0) * (0.08 + uSpeed*0.28 + uWarp*0.9);
+        col += vec3(1.0,0.98,0.95) * pow(max(0.0, 1.0 - r*3.2), 3.0) * (uSpeed*0.20 + uWarp*1.3);
 
         col += texture2D(tDye, vUv).rgb * uDye * 0.45 * (1.0 + uBeat * 2.0);
         col += vec3(0.8,0.95,1.0) * uBeat * 0.10 * den;
@@ -944,7 +1025,7 @@ function buildScene(){
       uRefract:new Uniform(INK.refract), uGlow:new Uniform(INK.glow),
       uAberr:new Uniform(INK.aberr), uDye:new Uniform(INK.dye),
       uTime:new Uniform(0), uBeat:new Uniform(0), uAspect:new Uniform(1),
-      uWarp:new Uniform(0), uFlash:new Uniform(0),
+      uWarp:new Uniform(0), uFlash:new Uniform(0), uSpeed:new Uniform(0),
       uResolution:new Uniform(new Vector2(1,1))
     }
   });
@@ -952,6 +1033,56 @@ function buildScene(){
   applyDimension(DIMENSIONS[dimIndex], false);
   resize();
   addEventListener("resize", resize);
+}
+
+/* Texture morbida per le nuvole nebulari: blob radiali accumulati su canvas */
+function makeCloudTexture(){
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const x = c.getContext("2d");
+  x.fillStyle = "rgba(0,0,0,0)"; x.fillRect(0,0,256,256);
+  for(let i=0;i<46;i++){
+    const px = 40+Math.random()*176, py = 40+Math.random()*176;
+    const r = 14+Math.random()*46;
+    const g = x.createRadialGradient(px,py,0,px,py,r);
+    const al = 0.05+Math.random()*0.09;
+    g.addColorStop(0, "rgba(255,255,255,"+al+")");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.beginPath(); x.arc(px,py,r,0,Math.PI*2); x.fill();
+  }
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/* I colori del tunnel vengono ripescati dalla palette della dimensione */
+function paintStreaks(d){
+  const cols = d.streaks.map(h=>new Color(h));
+  for(let i=0;i<WARP_N;i++){
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    const b = 0.35+Math.random()*0.65;
+    warpCol[i*6]  =c.r*b; warpCol[i*6+1]=c.g*b; warpCol[i*6+2]=c.b*b;   // testa
+    warpCol[i*6+3]=c.r*b*0.15; warpCol[i*6+4]=c.g*b*0.15; warpCol[i*6+5]=c.b*b*0.15; // coda
+  }
+  warpLines.geometry.attributes.color.needsUpdate = true;
+}
+function paintShards(d){
+  const cols = d.streaks.map(h=>new Color(h));
+  for(let i=0;i<SHARD_N;i++){
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    const b = 0.3+Math.random()*0.7;
+    for(let v=0;v<3;v++){
+      shardCol[i*9+v*3]  =c.r*b; shardCol[i*9+v*3+1]=c.g*b; shardCol[i*9+v*3+2]=c.b*b;
+    }
+  }
+  shards.geometry.attributes.color.needsUpdate = true;
+}
+function paintClouds(d){
+  const cols = [d.nebA, d.nebB, [d.nebA[0]*0.5+0.3, d.nebA[1]*0.5+0.3, d.nebA[2]*0.5+0.4]];
+  clouds.forEach(sp=>{
+    const c = cols[Math.floor(Math.random()*cols.length)];
+    sp.material.color.setRGB(c[0], c[1], c[2]);
+  });
 }
 
 function respawnAsteroid(ast, spread){
@@ -994,7 +1125,8 @@ function applyDimension(d, repositionPlanets=true){
   nebulaMat.uniforms.uColB.value = d.nebB.slice();
   starsMat.color.set(d.star);
   dust.material.color.set(d.dust);
-  warpLines.material.color.set(d.hex);
+  paintStreaks(d); paintShards(d); paintClouds(d);
+  vortexMat.uniforms.uTint.value = hexToVec3(d.hex);
   trail.material.color.set(d.engine);
   astMat.color.set(d.ast);
   cockpitMat.color.set(d.hex);
@@ -1105,6 +1237,7 @@ function updateSpaceScene(dt, now){
   worldSpeed += (targetSpeed - worldSpeed) * Math.min(1, dt*3);
   travelled += worldSpeed * dt;
   const spdNorm = clamp01((worldSpeed - CFG.baseSpeed) / CFG.musicSpeed);
+  speedNorm = spdNorm;
 
   /* Rotta dalle mani; senza mani, deriva d'autopilota */
   let tx, ty;
@@ -1175,7 +1308,42 @@ function updateSpaceScene(dt, now){
     warpPos[i*6+3]=m.x; warpPos[i*6+4]=m.y; warpPos[i*6+5]=m.z+streak;
   }
   warpLines.geometry.attributes.position.needsUpdate=true;
-  warpLines.material.opacity = clamp01(spdNorm*0.55 + warpAmt*0.9 - 0.05);
+  warpLines.material.opacity = clamp01(0.22 + spdNorm*0.5 + warpAmt*0.9);
+
+  /* Schegge: triangoli allungati lungo la rotta, apice avanti */
+  for(let i=0;i<SHARD_N;i++){
+    const s = shardMeta[i];
+    s.z += worldSpeed*dt*1.15;
+    if(s.z > camZ+6){
+      const a=Math.random()*Math.PI*2, r=6+Math.random()*32;
+      s.x=Math.cos(a)*r; s.y=Math.sin(a)*r; s.z=-180-Math.random()*60;
+      s.len=5+Math.random()*22; s.w=0.08+Math.random()*0.5; s.ca=Math.random()*Math.PI*2;
+    }
+    const wx = Math.cos(s.ca)*s.w, wy = Math.sin(s.ca)*s.w;
+    shardPos[i*9]  =s.x;    shardPos[i*9+1]=s.y;    shardPos[i*9+2]=s.z;
+    shardPos[i*9+3]=s.x+wx; shardPos[i*9+4]=s.y+wy; shardPos[i*9+5]=s.z+s.len;
+    shardPos[i*9+6]=s.x-wx; shardPos[i*9+7]=s.y-wy; shardPos[i*9+8]=s.z+s.len;
+  }
+  shards.geometry.attributes.position.needsUpdate=true;
+  shards.material.opacity = 0.18 + spdNorm*0.4 + warpAmt*0.4;
+
+  /* Nuvole nebulari in corsa laterale */
+  for(const sp of clouds){
+    sp.position.z += worldSpeed*dt*0.55;
+    sp.material.rotation += sp.userData.spin*dt;
+    if(sp.position.z > camZ+30){
+      const a=Math.random()*Math.PI*2, r=14+Math.random()*38;
+      sp.position.set(Math.cos(a)*r, Math.sin(a)*r, -220-Math.random()*60);
+      sp.scale.setScalar(24+Math.random()*46);
+    }
+  }
+
+  /* Vortice al punto di fuga */
+  vortex.position.x = spaceship.position.x*0.6;
+  vortex.position.y = spaceship.position.y*0.6;
+  vortex.rotation.z += dt*(0.15 + warpAmt*1.2);
+  vortexMat.uniforms.uTime.value = now;
+  vortexMat.uniforms.uInt.value = 0.22 + spdNorm*0.45 + warpAmt*1.1 + beatEnv*0.12;
 
   for(const a of asteroids){
     a.position.z += worldSpeed*dt*0.92;
@@ -1253,6 +1421,7 @@ function frame(now){
     composite.uniforms.uTime.value    = now * 0.001;
     composite.uniforms.uWarp.value    = warpAmt;
     composite.uniforms.uFlash.value   = flashAmt;
+    composite.uniforms.uSpeed.value   = speedNorm;
     fluid.curlStrength        = lerp(INK.curl, HEAT.curl, m) * (1.0 + beatEnv*0.5);
     fluid.velocityDissipation = lerp(INK.vd,   HEAT.vd,   m);
     fluid.densityDissipation  = lerp(INK.dd,   HEAT.dd,   m);

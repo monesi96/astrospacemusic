@@ -1,0 +1,23 @@
+{
+  "_nota": "Un oggetto per brano. 'slot' vale 'none' per gli stem sempre attivi, oppure 'Left:index', 'Right:thumb' ecc. Dita disponibili: thumb, index, middle, ring, pinky.",
+  "songs": [
+    {
+      "id": "brano-01",
+      "title": "Titolo del brano",
+      "bpm": 120,
+      "base": "stems/brano-01/",
+      "stems": [
+        { "name": "Batteria",  "file": "drums.m4a",  "slot": "none" },
+        { "name": "Basso",     "file": "bass.m4a",   "slot": "Left:index" },
+        { "name": "Pad",       "file": "pad.m4a",    "slot": "Left:middle" },
+        { "name": "Archi",     "file": "strings.m4a","slot": "Left:ring" },
+        { "name": "Arpeggio",  "file": "arp.m4a",    "slot": "Left:pinky" },
+        { "name": "Lead",      "file": "lead.m4a",   "slot": "Right:index" },
+        { "name": "Coro",      "file": "choir.m4a",  "slot": "Right:middle" },
+        { "name": "Rumori",    "file": "fx.m4a",     "slot": "Right:ring" },
+        { "name": "Percussioni","file": "perc.m4a",  "slot": "Right:pinky" },
+        { "name": "Sub",       "file": "sub.m4a",    "slot": "Right:thumb" }
+      ]
+    }
+  ]
+}

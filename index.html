@@ -173,8 +173,8 @@
   #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
   /* Webcam fantasma: a tutto schermo, ci si intravede dentro lo spazio */
   #cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-    transform:scaleX(-1);opacity:.32;z-index:1;mix-blend-mode:screen;
-    filter:saturate(0.7) contrast(1.25) brightness(1.1);pointer-events:none}
+    transform:scaleX(-1);opacity:.45;z-index:1;mix-blend-mode:screen;
+    filter:saturate(0.75) contrast(1.25) brightness(1.15);pointer-events:none}
 
   #strips{position:absolute;right:0;top:80px;bottom:80px;width:min(44vw,270px);z-index:2;
     display:flex;flex-direction:column;justify-content:center;gap:8px;padding:18px;pointer-events:none}
@@ -283,14 +283,14 @@
     <p class="eyebrow">Astrolancer · esperienza audiovisiva</p>
     <h1>Segui<br>la rotta</h1>
     <p class="lede">
-      Carica gli stem scaricati da MobyGratis: il sistema li mescola a caso a ogni sessione,
-      taglia il silenzio iniziale e li sincronizza. Poi si vola: <b>la musica è il motore</b>.
-      Più il brano sale, più la nave accelera — e quando l'energia trabocca la nave
-      <b>salta di dimensione</b>: nebulose, pianeti e colori cambiano settore.
-      Tasto <code>W</code> per forzare il salto.
+      Un brano a caso dal catalogo, dieci dita, dieci tracce. <b>Stendi un dito</b> per far
+      entrare la sua traccia, <b>piegalo</b> per toglierla; l'altezza apre il filtro, alzare
+      il polso manda il riverbero. <b>Muovi le mani e la nave spinge</b>: i motori si accendono,
+      lo spazio accelera — e quando l'energia trabocca, <b>salto di dimensione</b>.
+      Tasto <code>W</code> per forzarlo.
     </p>
 
-    <div class="block">
+    <div class="block" id="selBlock">
       <div class="tabs" role="tablist">
         <button class="tab on" role="tab" id="tabOnline" aria-selected="true">Catalogo GitHub</button>
         <button class="tab" role="tab" id="tabLocal" aria-selected="false">File locali</button>
@@ -360,6 +360,7 @@
   </div>
   <div id="hud-status">
     <span class="hud-blink">SYS ONLINE</span>
+    <span>BRANO <b id="sys-song">—</b></span>
     <span>ROTTA X:<b id="pos-x">0</b> Y:<b id="pos-y">0</b></span>
     <span>SETTORE <b id="sys-sector">CY-441</b></span>
     <span>FPS <b id="sys-fps">60</b></span>
@@ -480,7 +481,10 @@ const TIP = { thumb:4, index:8, middle:12, ring:16, pinky:20 };
 const SLOT_ORDER = ["Left:index","Right:index","Left:middle","Right:middle","Left:ring","Right:ring",
                     "Left:pinky","Right:pinky","Left:thumb","Right:thumb"];
 
-const DEBUG_DIRECT = new URLSearchParams(location.search).has("direct");
+const URL_PARAMS = new URLSearchParams(location.search);
+const DEBUG_DIRECT = URL_PARAMS.has("direct");
+/* Versione pubblica: solo il gioco, brano scelto a caso. ?studio riattiva i controlli. */
+const STUDIO = URL_PARAMS.has("studio");
 const $ = s => document.querySelector(s);
 const clamp01 = v => v<0?0:v>1?1:v;
 const lerp = (a,b,t) => a+(b-a)*t;
@@ -495,24 +499,48 @@ function shuffle(arr){
   return a;
 }
 
-function guessSlot(name){
-  const n = name.toLowerCase();
-  if(/drum|kick|snare|hat|^k_|^k\d|^sn[_\d]|^hh|^dr/.test(n)) return "none";
-  if(/bass|^bs/.test(n)) return "Left:index";
-  if(/pad|synth|^syn|key|^pd/.test(n)) return "Left:middle";
-  if(/string|orch|violin|cello|^str/.test(n)) return "Left:ring";
-  if(/arp|pluck|mallet/.test(n)) return "Left:pinky";
-  if(/lead|solo|melody|^ld/.test(n)) return "Right:index";
-  if(/choir|vox|voice|^vo/.test(n)) return "Right:middle";
-  if(/fx|noise|sweep|rise/.test(n)) return "Right:ring";
-  if(/perc|tom|conga/.test(n)) return "Right:pinky";
-  if(/sub|low|808/.test(n)) return "Right:thumb";
-  return SLOT_ORDER[Math.floor(Math.random()*SLOT_ORDER.length)];
+/* ------- Matching dita <-> suoni: deterministico e senza doppioni -------
+   La ritmica va su "sempre attivo", ogni altro suono prende il SUO dito;
+   se il dito preferito è occupato, passa al primo libero. */
+const RHYTHM_RE = /drum|kick|snare|hat|perc|tom|conga|^k[_\d]|^sn[_\d]|^hh|^dr/i;
+const SLOT_PREF = [
+  [/bass|^bs/i,               "Left:index"],
+  [/lead|solo|melody|^ld/i,   "Right:index"],
+  [/gt|guitar|chit/i,         "Right:middle"],
+  [/pad|^pd/i,                "Left:middle"],
+  [/syn|key/i,                "Left:middle"],
+  [/string|orch|violin|cello|^str/i, "Left:ring"],
+  [/arp|pluck|mallet/i,       "Left:pinky"],
+  [/choir|vox|voice|^vo/i,    "Right:ring"],
+  [/fx|noise|sweep|rise/i,    "Right:pinky"],
+  [/sub|808/i,                "Right:thumb"],
+];
+function assignSlots(files){
+  const used = new Set();
+  const out = files.map(f=>({ f, slot:null }));
+  for(const o of out) if(RHYTHM_RE.test(o.f.name)) o.slot = "none";
+  for(const o of out){
+    if(o.slot) continue;
+    for(const [re, pref] of SLOT_PREF){
+      if(re.test(o.f.name)){
+        const s = used.has(pref) ? SLOT_ORDER.find(x=>!used.has(x)) : pref;
+        if(s){ o.slot = s; used.add(s); }
+        break;
+      }
+    }
+  }
+  for(const o of out){
+    if(o.slot) continue;
+    const s = SLOT_ORDER.find(x=>!used.has(x));
+    if(s){ o.slot = s; used.add(s); } else o.slot = "none";
+  }
+  if(!out.some(o=>o.slot==="none") && out.length) out[0].slot = "none";
+  return out;
 }
 
 /* ------- Catalogo GitHub: legge music/ dal repo, zero server ------- */
 const MUSIC_API = "https://api.github.com/repos/monesi96/astrospacemusic/contents/music";
-let onlineFiles = null;
+let onlineFiles = null, onlineBpm = {};
 async function ghList(url){
   const r = await fetch(url, { headers:{ Accept:"application/vnd.github+json" } });
   if(r.status===403) throw new Error("limite API GitHub raggiunto, riprova tra qualche minuto");
@@ -528,20 +556,29 @@ async function loadMusicCatalog(){
     try{ cached = JSON.parse(sessionStorage.getItem("musicCatalog")||"null"); }catch{}
     if(cached && Date.now()-cached.t < 600000 && cached.files.length){
       onlineFiles = cached.files;
+      onlineBpm = cached.bpm || {};
     } else {
       const audioRe = /\.(wav|mp3|m4a|ogg|flac)$/i;
+      const bpmRe = /(\d{2,3})\s*bpm/i;
       const root = await ghList(MUSIC_API);
-      const files = [];
+      const files = []; const bpm = {};
       for(const e of (Array.isArray(root)?root:[])){
         if(e.type==="file" && audioRe.test(e.name)) files.push({ name:e.name, url:e.download_url, dir:"" });
         else if(e.type==="dir"){
+          const bm = e.name.match(bpmRe);
+          if(bm) bpm[e.name] = Number(bm[1]);
           const sub = await ghList(e.url);
-          for(const s of (Array.isArray(sub)?sub:[]))
+          for(const s of (Array.isArray(sub)?sub:[])){
             if(s.type==="file" && audioRe.test(s.name)) files.push({ name:s.name, url:s.download_url, dir:e.name });
+            else if(s.type==="file"){
+              const m = s.name.match(bpmRe);
+              if(m) bpm[e.name] = Number(m[1]);
+            }
+          }
         }
       }
-      onlineFiles = files;
-      try{ sessionStorage.setItem("musicCatalog", JSON.stringify({ t:Date.now(), files })); }catch{}
+      onlineFiles = files; onlineBpm = bpm;
+      try{ sessionStorage.setItem("musicCatalog", JSON.stringify({ t:Date.now(), files, bpm })); }catch{}
     }
     if(!onlineFiles.length) throw new Error("cartella vuota");
     pickOnlineMix();
@@ -551,24 +588,32 @@ async function loadMusicCatalog(){
   }
 }
 function pickOnlineMix(){
+  /* Ogni sottocartella di music/ è una canzone: se ne sceglie UNA a caso.
+     I file sciolti nella radice sono il ripiego "mix libero". */
+  const songs = {};
+  for(const f of onlineFiles){ (songs[f.dir] = songs[f.dir]||[]).push(f); }
+  const dirs = Object.keys(songs).filter(d => d && songs[d].length >= 2);
+  let files, label;
+  if(dirs.length){
+    label = dirs[Math.floor(Math.random()*dirs.length)];
+    files = songs[label];
+  } else {
+    label = ""; files = songs[""] || [];
+  }
   /* i mix completi (file "mix"/"master"/"full") restano fuori se ci sono abbastanza stem */
-  let pool = onlineFiles.filter(f => !/\bmix\b|master|full/i.test(f.name));
-  if(pool.length < 4) pool = onlineFiles;
-  const shuffled = shuffle(pool);
-  const drums = shuffled.find(f => /drum|kick|snare|^k_|^k\d|^sn[_\d]|^hh/i.test(f.name));
-  let selected = shuffled.slice(0,11);
-  if(drums && selected[0]!==drums) selected = [drums, ...selected.filter(f=>f!==drums)].slice(0,11);
-  picked = selected.map((f,i)=>({
-    name: (f.dir ? f.dir+" · " : "") + f.name.replace(/\.[^.]+$/,""),
-    url: f.url,
-    slot: i===0 ? "none" : guessSlot(f.name)
-  }));
-  songTitle = "Mix " + Math.floor(Math.random()*999);
+  let pool = files.filter(f => !/\bmix\b|master|full/i.test(f.name));
+  if(pool.length < 4) pool = files;
+  const assigned = assignSlots(shuffle(pool).slice(0,11));
+  picked = assigned.map(o=>({ name:o.f.name.replace(/\.[^.]+$/,""), url:o.f.url, slot:o.slot }));
+  $("#bpm").value = onlineBpm[label] || (label.match(/(\d{2,3})\s*bpm/i)||[])[1] || 120;
+  songTitle = (label || "mix libero").replace(/[-_]/g," ").replace(/\s*\d{2,3}\s*bpm/i,"").trim();
+  const se = document.getElementById("sys-song"); if(se) se.textContent = songTitle.toUpperCase();
   drawRows();
-  $("#mapBlock").hidden = false;
+  if(STUDIO) $("#mapBlock").hidden = false;
   $("#go").disabled = false;
   $("#status").className="";
-  $("#status").textContent = picked.length+" stem dal repo ("+onlineFiles.length+" tracce disponibili).";
+  $("#status").textContent = "Brano: “"+songTitle+"” — "+picked.length+" tracce."
+    + (dirs.length ? "" : " Consiglio: dividi le canzoni nelle sottocartelle di music/.");
 }
 function switchMode(m){
   $("#tabOnline").ariaSelected = String(m==="online");
@@ -581,23 +626,21 @@ function switchMode(m){
 $("#tabOnline").onclick = ()=>{ switchMode("online"); loadMusicCatalog(); };
 $("#tabLocal").onclick  = ()=>{ switchMode("local"); $("#status").className=""; $("#status").textContent="In attesa dei file."; };
 $("#remix").onclick = ()=>{ onlineFiles?.length ? pickOnlineMix() : loadMusicCatalog(); };
+if(!STUDIO) $("#selBlock").style.display = "none";
 loadMusicCatalog();
 
 $("#files").addEventListener("change", e=>{
   const files = [...e.target.files].filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|m4a|ogg|flac)$/i.test(f.name));
   if(!files.length){ $("#status").textContent="Nessun file audio trovato."; return; }
-  const shuffled = shuffle(files);
-  const drums = shuffled.find(f => /drum|kick|snare/i.test(f.name));
-  let selected = shuffled.slice(0,11);
-  if(drums && selected[0] !== drums){ selected = [drums, ...selected.filter(f=>f!==drums)].slice(0,11); }
-  picked = selected.map((f,i)=>({
-    name: f.name.replace(/\.[^.]+$/,""),
-    url: URL.createObjectURL(f),
-    slot: i===0 ? "none" : guessSlot(f.name)
+  const assigned = assignSlots(shuffle(files).slice(0,11));
+  picked = assigned.map(o=>({
+    name: o.f.name.replace(/\.[^.]+$/,""),
+    url: URL.createObjectURL(o.f),
+    slot: o.slot
   }));
   songTitle = "Rotta " + Math.floor(Math.random()*999);
   drawRows();
-  $("#mapBlock").hidden = false;
+  if(STUDIO) $("#mapBlock").hidden = false;
   $("#go").disabled = false;
   $("#status").className="";
   $("#status").textContent = picked.length + " stem pronti. Ogni volta che ricarichi la pagina il mix cambia.";
@@ -1378,7 +1421,11 @@ function dyeFor(level, mix){
   return [ lerp(d.dyeA[0],d.dyeB[0],t)*0.9, lerp(d.dyeA[1],d.dyeB[1],t)*0.9, lerp(d.dyeA[2],d.dyeB[2],t)*0.9 ];
 }
 
+/* Le dita non dipingono più: creano CORRENTI che piegano lo spazio (solo
+   velocità, niente inchiostro) e caricano la spinta dei motori. */
+let handMotion = 0;
 function injectFingers(){
+  let motion = 0;
   for(const ch of channels){
     if(!ch.hand) continue;
     const hand = live[ch.hand];
@@ -1392,10 +1439,12 @@ function injectFingers(){
     const dx = (px-p.x)*innerWidth;
     const dy = (py-p.y)*innerHeight;
     if(Math.abs(dx)+Math.abs(dy) < 0.6) continue;
-    fluid.splatRadius = 0.0009 + f.ext*0.0028;
-    const force = CFG.splatForce * (0.4 + ch.level*1.2);
-    fluid.addSplat(px, py, dx*force, dy*force, { dyeColor: dyeFor(ch.level, mixSmooth) });
+    motion += Math.hypot(dx, dy);
+    fluid.splatRadius = 0.0007 + f.ext*0.0014;
+    const force = CFG.splatForce * (0.25 + ch.level*0.7);
+    fluid.addSplat(px, py, dx*force, dy*force);
   }
+  handMotion += (clamp01(motion/240) - handMotion) * 0.12;
 }
 
 /* Onda d'urto sul beat: parte dai bordi, il centro resta leggibile */
@@ -1442,8 +1491,8 @@ function updateWarp(dt){
 function updateSpaceScene(dt, now){
   const d = DIMENSIONS[dimIndex];
 
-  /* Velocità: la musica è il propulsore, il warp lo squarcio */
-  const targetSpeed = (CFG.baseSpeed + mixSmooth*CFG.musicSpeed + beatEnv*CFG.beatSpeed)
+  /* Velocità: la musica è il propulsore, le mani la manetta, il warp lo squarcio */
+  const targetSpeed = (CFG.baseSpeed + mixSmooth*CFG.musicSpeed + beatEnv*CFG.beatSpeed + handMotion*20)
     * (1 + warpAmt*CFG.warpSpeedMul);
   worldSpeed += (targetSpeed - worldSpeed) * Math.min(1, dt*3);
   travelled += worldSpeed * dt;
@@ -1474,10 +1523,10 @@ function updateSpaceScene(dt, now){
   spaceship.rotation.x += ( vy*0.05 + Math.sin(now*0.8)*0.02 - spaceship.rotation.x) * Math.min(1, dt*5);
   spaceship.rotation.y = Math.sin(now*0.5)*0.015;
 
-  /* Motori: respiro col beat, spinta col warp */
-  const es = 1 + beatEnv*0.7 + warpAmt*1.6;
-  engineGlows.forEach(g=>{ g.scale.set(es, es, es*(1+warpAmt*3)); });
-  engineLights.forEach(l=>{ l.intensity = 2 + beatEnv*7 + warpAmt*10; });
+  /* Motori: respiro col beat, fiamma con il movimento delle mani, spinta col warp */
+  const es = 1 + beatEnv*0.7 + warpAmt*1.6 + handMotion*2.2;
+  engineGlows.forEach(g=>{ g.scale.set(es, es, es*(1 + warpAmt*3 + handMotion*2.5)); });
+  engineLights.forEach(l=>{ l.intensity = 2 + beatEnv*7 + warpAmt*10 + handMotion*9; });
 
   /* Scia: ring buffer dalle due gondole */
   for(const sx of [-0.9, 0.9]){
@@ -1491,7 +1540,8 @@ function updateSpaceScene(dt, now){
     if(trailPos[i*3+2] > 60) trailPos[i*3+2] = 9999;
   }
   trail.geometry.attributes.position.needsUpdate=true;
-  trail.material.opacity = 0.3 + beatEnv*0.35 + warpAmt*0.3;
+  trail.material.opacity = 0.3 + beatEnv*0.35 + warpAmt*0.3 + handMotion*0.4;
+  trail.material.size = 0.14 + handMotion*0.16;
 
   /* Mondo in corsa: polvere, linee di warp, asteroidi, pianeti */
   const camZ = spaceCamera.position.z;
@@ -1581,7 +1631,7 @@ function updateSpaceScene(dt, now){
   spaceCamera.position.add(camShake);
   spaceCamera.lookAt(spaceship.position.x*0.8, spaceship.position.y*0.8, -14);
   spaceCamera.rotateZ(-spaceship.rotation.z*0.35);
-  const fov = 58 + spdNorm*13 + beatEnv*3 + warpAmt*26;
+  const fov = 58 + spdNorm*13 + beatEnv*3 + warpAmt*26 + handMotion*6;
   if(Math.abs(fov-spaceCamera.fov)>0.05){ spaceCamera.fov=fov; spaceCamera.updateProjectionMatrix(); }
 }
 
@@ -1605,6 +1655,7 @@ function frame(now){
       const spb = 60/(Number($("#bpm").value)||120);
       demoBeatAcc += dt;
       if(demoBeatAcc >= spb){ demoBeatAcc -= spb; beatEnv=1; if(fluid) beatBurst(safe(low,0,1)); }
+      handMotion += ((0.12 + 0.18*Math.abs(Math.sin(now*0.0009))) - handMotion) * 0.05;
     } else {
       rms = safe(fullMeter.getValue(),0,1);
       low = safe(lowMeter.getValue(),0,1);

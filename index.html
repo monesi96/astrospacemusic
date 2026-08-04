@@ -147,19 +147,49 @@
   #status{color:var(--muted);margin-top:14px;min-height:1.4em;line-height:1.5}
   .warn{color:var(--alert)}
 
-  /* ============ LOADER ============ */
+  /* ============ LOADER / INTRO ============ */
   #loader{position:fixed;inset:0;z-index:25;display:none;place-items:center;
-    background:radial-gradient(60% 50% at 50% 45%, #081226 0%, var(--void) 75%)}
-  #loader .inner{width:min(520px,86vw);text-align:center}
-  #loader h2{font-size:15px;font-weight:400;letter-spacing:.4em;text-transform:uppercase;
-    color:var(--accent);margin-bottom:8px;font-family:"IBM Plex Mono",monospace}
-  #loader p{color:var(--muted);margin-bottom:34px;min-height:1.4em;font-size:11px;
+    background:radial-gradient(60% 50% at 50% 42%, #081226 0%, var(--void) 75%)}
+  #loader .inner{width:min(600px,88vw);text-align:center}
+
+  /* Logo Astrolancer: la griglia di punti si genera dal centro verso fuori */
+  #logo-mark{width:clamp(96px,16vw,136px);height:auto;margin-bottom:8px;
+    filter:drop-shadow(0 0 14px rgba(var(--accent-rgb),.45));
+    animation:logobreathe 3.4s 1.8s ease-in-out infinite}
+  .ld{fill:var(--accent);opacity:.92;
+    transform:scale(0);transform-box:fill-box;transform-origin:center;
+    animation:ldpop .5s var(--d) cubic-bezier(.34,1.56,.64,1) forwards}
+  @keyframes ldpop{to{transform:scale(1)}}
+  @keyframes logobreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+  #logo-word{font-family:"Bricolage Grotesque",Georgia,serif;font-weight:700;font-size:15px;
+    letter-spacing:.6em;text-transform:uppercase;color:var(--accent);margin-bottom:26px;
+    animation:wordin 1.4s .5s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes wordin{from{opacity:0;letter-spacing:1.1em}to{opacity:1;letter-spacing:.6em}}
+
+  #loadBig{font-family:"Bricolage Grotesque",Georgia,serif;font-weight:700;
+    font-size:clamp(38px,8vw,68px);line-height:1;text-transform:uppercase;
+    letter-spacing:-.01em;margin-bottom:18px;
+    background:linear-gradient(100deg,var(--bone) 20%,var(--accent) 60%,var(--mag));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 26px rgba(var(--accent-rgb),.28));
+    animation:rise .8s .3s cubic-bezier(.2,.8,.2,1) both}
+  #loadHow{color:var(--muted);line-height:1.75;font-size:12px;max-width:52ch;
+    margin:0 auto 30px;animation:rise .8s .55s cubic-bezier(.2,.8,.2,1) both}
+  #loadHow b{color:var(--bone);font-weight:500}
+
+  #loader h2#loadTitle{font-size:11px;font-weight:400;letter-spacing:.4em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:6px;font-family:"IBM Plex Mono",monospace}
+  #loader p#loadWhat{color:var(--muted);margin-bottom:16px;min-height:1.4em;font-size:11px;
     letter-spacing:.08em}
   #pct{font-family:"Bricolage Grotesque",Georgia,serif;font-weight:700;
-    font-size:clamp(70px,16vw,130px);line-height:1;margin-bottom:26px;
+    font-size:clamp(40px,8vw,72px);line-height:1;margin-bottom:18px;
     background:linear-gradient(100deg,var(--bone) 10%,var(--accent) 60%,var(--mag));
     -webkit-background-clip:text;background-clip:text;color:transparent;
     filter:drop-shadow(0 0 30px rgba(var(--accent-rgb),.3))}
+  #tapGo{display:none;margin-top:30px;font-size:13px;letter-spacing:.4em;
+    text-transform:uppercase;color:var(--bone);cursor:pointer;
+    text-shadow:0 0 16px rgba(var(--accent-rgb),.7);
+    animation:hudblink 1.2s infinite}
   .track{height:5px;background:rgba(var(--accent-rgb),.1);position:relative;overflow:hidden;
     clip-path:polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)}
   .track i{position:absolute;inset:0 100% 0 0;
@@ -333,10 +363,44 @@
 </section>
 
 <section id="loader"><div class="inner">
+  <svg id="logo-mark" viewBox="0 0 120 120" aria-hidden="true">
+    <!-- Marchio Astrolancer: griglia di punti che si genera dal centro -->
+    <circle class="ld" style="--d:.10s" cx="60" cy="60" r="2"/>
+    <circle class="ld" style="--d:.22s" cx="39" cy="60" r="5.5"/>
+    <circle class="ld" style="--d:.26s" cx="81" cy="60" r="5.5"/>
+    <circle class="ld" style="--d:.30s" cx="60" cy="39" r="5"/>
+    <circle class="ld" style="--d:.34s" cx="60" cy="81" r="5"/>
+    <circle class="ld" style="--d:.42s" cx="39" cy="39" r="9"/>
+    <circle class="ld" style="--d:.46s" cx="81" cy="39" r="6.5"/>
+    <circle class="ld" style="--d:.50s" cx="39" cy="81" r="5.5"/>
+    <circle class="ld" style="--d:.54s" cx="81" cy="81" r="9"/>
+    <circle class="ld" style="--d:.62s" cx="18" cy="39" r="7"/>
+    <circle class="ld" style="--d:.66s" cx="102" cy="39" r="9"/>
+    <circle class="ld" style="--d:.70s" cx="18" cy="60" r="9"/>
+    <circle class="ld" style="--d:.74s" cx="102" cy="60" r="9"/>
+    <circle class="ld" style="--d:.78s" cx="18" cy="81" r="9"/>
+    <circle class="ld" style="--d:.82s" cx="102" cy="81" r="6.5"/>
+    <circle class="ld" style="--d:.86s" cx="39" cy="18" r="6.5"/>
+    <circle class="ld" style="--d:.90s" cx="60" cy="18" r="9"/>
+    <circle class="ld" style="--d:.94s" cx="81" cy="18" r="9"/>
+    <circle class="ld" style="--d:.98s" cx="39" cy="102" r="9"/>
+    <circle class="ld" style="--d:1.02s" cx="60" cy="102" r="9"/>
+    <circle class="ld" style="--d:1.06s" cx="81" cy="102" r="6.5"/>
+    <circle class="ld" style="--d:1.14s" cx="18" cy="18" r="2.5"/>
+    <circle class="ld" style="--d:1.18s" cx="102" cy="18" r="2"/>
+    <circle class="ld" style="--d:1.22s" cx="18" cy="102" r="2"/>
+    <circle class="ld" style="--d:1.26s" cx="102" cy="102" r="2.5"/>
+  </svg>
+  <div id="logo-word">Astrolancer</div>
+  <h2 id="loadBig">Segui la rotta</h2>
+  <p id="loadHow">Concedi la webcam e alza le mani: <b>ogni dito accende una traccia</b> del brano.
+    Stendilo per farla entrare, piegalo per toglierla; l'altezza apre il filtro, il polso manda il riverbero.
+    <b>Muovi le mani e la nave spinge</b> — quando l'energia trabocca, salto di dimensione.</p>
   <h2 id="loadTitle">Preparo il brano</h2>
   <p id="loadWhat">—</p>
   <div id="pct">0%</div>
   <div class="track"><i id="bar"></i></div>
+  <div id="tapGo">Tocca per entrare</div>
 </div></section>
 
 <section id="stage">
@@ -631,8 +695,8 @@ function switchMode(m){
 $("#tabOnline").onclick = ()=>{ switchMode("online"); loadMusicCatalog(); };
 $("#tabLocal").onclick  = ()=>{ switchMode("local"); $("#status").className=""; $("#status").textContent="In attesa dei file."; };
 $("#remix").onclick = ()=>{ onlineFiles?.length ? pickOnlineMix() : loadMusicCatalog(); };
-if(!STUDIO) $("#selBlock").style.display = "none";
-loadMusicCatalog();
+if(!STUDIO){ $("#selBlock").style.display = "none"; publicFlow(); }
+else loadMusicCatalog();
 
 $("#files").addEventListener("change", e=>{
   const files = [...e.target.files].filter(f => f.type.startsWith("audio/") || /\.(wav|mp3|m4a|ogg|flac)$/i.test(f.name));
@@ -687,7 +751,6 @@ function trimSilence(ctx, buffer, threshold=CFG.trimThreshold, maxLookaheadSec=C
 
 /* ===================================================================== PRELOAD */
 async function preload(){
-  await Tone.start();
   const ctx = Tone.getContext().rawContext;
   const buffers=[];
   const show = p => {
@@ -1778,43 +1841,54 @@ function updateStrips(){
 }
 
 /* ===================================================================== AVVIO / ARRESTO */
-async function start(demo){
+/* prepare(): scarica, decodifica, accende webcam e mixer — tutto tranne l'audio
+   in uscita (che il browser sblocca solo dopo un gesto). launch(): si parte. */
+async function prepare(demo){
   demoMode = !!demo;
+  if(!demoMode){
+    const buffers = await preload();
+    $("#loadTitle").textContent = "Accendo la camera";
+    $("#loadWhat").textContent = "Consenti l'accesso quando il browser lo chiede";
+    await buildTracking();
+    await buildAudio(buffers);
+  } else {
+    channels = [];
+    $("#loadTitle").textContent = "Modalità demo";
+    $("#loadWhat").textContent = "Solo scena, beat sintetico";
+  }
+  $("#bar").style.right="0%"; $("#pct").textContent="100%";
+}
+
+async function launch(){
+  if(!demoMode){ try{ await Tone.start(); }catch(e){ console.error(e); } }
+  $("#loader").style.display="none";
+  $("#stage").style.display="block";
+  buildScene();
+  buildStrips();
+  sessionStart = performance.now();
+
+  if(!demoMode){
+    Tone.getTransport().scheduleRepeat(()=>{
+      beatEnv = 1;
+      if(fluid) beatBurst(safe(lowMeter.getValue(),0,1));
+    }, "4n");
+    Tone.getTransport().scheduleRepeat(()=>{ startWarp(); }, CFG.warpEveryMeasures+"m");
+    Tone.getTransport().start();
+  }
+
+  running = true;
+  lastFrame = performance.now();
+  requestAnimationFrame(frame);
+}
+
+/* Studio: il bottone resta */
+async function start(demo){
   $("#go").disabled = true;
   $("#setup").style.display="none";
   $("#loader").style.display="grid";
   try{
-    let buffers=[];
-    if(!demoMode){
-      buffers = await preload();
-      $("#loadTitle").textContent = "Accendo la camera";
-      $("#loadWhat").textContent = "Consenti l'accesso quando il browser lo chiede";
-      await buildTracking();
-      await buildAudio(buffers);
-    } else {
-      channels = [];
-      $("#loadTitle").textContent = "Modalità demo";
-      $("#loadWhat").textContent = "Solo scena, beat sintetico";
-    }
-
-    $("#loader").style.display="none";
-    $("#stage").style.display="block";
-    buildScene();
-    buildStrips();
-    sessionStart = performance.now();
-
-    if(!demoMode){
-      Tone.getTransport().scheduleRepeat(()=>{
-        beatEnv = 1;
-        if(fluid) beatBurst(safe(lowMeter.getValue(),0,1));
-      }, "4n");
-      Tone.getTransport().scheduleRepeat(()=>{ startWarp(); }, CFG.warpEveryMeasures+"m");
-      Tone.getTransport().start();
-    }
-
-    running = true;
-    lastFrame = performance.now();
-    requestAnimationFrame(frame);
+    await prepare(demo);
+    await launch();
   }catch(err){
     console.error(err);
     $("#loader").style.display="none";
@@ -1823,6 +1897,35 @@ async function start(demo){
     $("#status").textContent = describe(err);
     $("#go").disabled = false;
   }
+}
+
+/* Pubblico: niente bottoni — il primo mondo si carica da solo, poi un tocco
+   ovunque per entrare (l'audio del browser si sblocca solo con un gesto). */
+async function publicFlow(){
+  $("#setup").style.display="none";
+  $("#loader").style.display="grid";
+  $("#loadTitle").textContent = "Cerco il brano";
+  $("#loadWhat").textContent = "Leggo il catalogo…";
+  try{
+    await loadMusicCatalog();
+    if(!picked.length) throw new Error("nessun brano");
+    await prepare(false);
+  }catch(err){
+    console.error(err);
+    demoMode = true; channels = [];
+    $("#loadWhat").textContent = describe(err)+" — parto in modalità scena.";
+    $("#bar").style.right="0%"; $("#pct").textContent="100%";
+  }
+  $("#loadTitle").textContent = "Rotta pronta";
+  if(!demoMode) $("#loadWhat").textContent = "Brano: “"+songTitle+"”";
+  $("#tapGo").style.display = "block";
+  const go = ()=>{
+    removeEventListener("pointerdown", go);
+    removeEventListener("keydown", go);
+    launch();
+  };
+  addEventListener("pointerdown", go);
+  addEventListener("keydown", go);
 }
 
 function describe(err){
